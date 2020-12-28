@@ -5,17 +5,123 @@ var max_value = 900; // to be calibrated
 var uppermargin = 20;
 var lowermargin = 0;
 
-var sensormodel = ();
+~sensormodel = (
+		\safeReg : {
+		// adding methods to the event using safeReg will warn you if you overwrite methods
+		// that already have a pre-defined meaning (like: "next").
+		| self, name, implementation, verbose=0 |
+		var symbolicname = name.asSymbol;
+		if (self.respondsTo(symbolicname)) {
+			("Error! Registering" + "\\" ++ symbolicname + "would overwrite a member that exists already.").postln;
+		} {
+			if (self.keys.includes(symbolicname)) {
+				("Error! Cannot register" + "\\" ++ symbolicname + "twice.").postln;
+			} {
+				if (verbose != 0) {
+					("Registered" + "\\" ++ symbolicname ++ ".").postln;
+				};
+				self[symbolicname] = implementation;
+			};
+		};
+	};
+);
+~sensormodel.safeReg(\setVal, {
+	| self, index, val |
+	self[index.asSymbol][\val] = val;
+});
+~sensormodel.safeReg(\val, {
+	| self, index |
+	self[index.asSymbol][\val]
+});
+~sensormodel.safeReg(\setHighlight, {
+	| self, index, highlight |
+	self[index.asSymbol][\highlight] = highlight;
+});
+~sensormodel.safeReg(\highlight, {
+	| self, index|
+	self[index.asSymbol][\highlight];
+});
+~sensormodel.safeReg(\setShowcalibration, {
+	| self, index, showcalibration |
+	self[index.asSymbol][\showcalibration] = showcalibration;
+});
+~sensormodel.safeReg(\showcalibration, {
+	| self, index, showcalibration |
+	self[index.asSymbol][\showcalibration];
+});
+~sensormodel.safeReg(\registerOscListener, {
+	| self, handler |
+	if (self[\oschandler].isNil) {
+		self[\oschandler] = handler;
+	}
+});
+~sensormodel.safeReg(\drawFunc, {
+	|uview|
+	var totalwidth = uview.bounds.width;
+	var totalheight= uview.bounds.height;
+	16.do({
+		| sensorindex |
+		var sensor = ~sensormodel[sensorindex.asSymbol];
+		var x = sensor[\x];
+		var y = sensor[\y];
+		var left = ((x*2) + 1)*totalwidth/9;
+		var top = ((y*2) + 1)*totalheight/9;
+		var color = Color(sensor[\val].linlin(sensor[\min], sensor[\max], 0, 1));
+		var highlightcolor = if (sensor[\highlight] == \min) { Color(0, 0, 1.0); } { Color(0.5, 0.5, 1.0); };
 
-f = OSCFunc({
-	|msg|
-	var x = msg[1];
-	var y = msg[2];
-	var value = msg[3];
-	var linindex = y*4 + x;
-	sensormodel[linindex.asSymbol][\val] = value;
+		if (sensor[\highlight] != \none) {
+			var extrawidth = (totalwidth/6) - (totalwidth/9);
+			var extraheight = (totalheight/6) - (totalheight/9);
+			var highlightleft = left - (extrawidth/2.0);
+			var highlighttop = top - (extraheight/2.0);
+			Pen.addRect(Rect(highlightleft, highlighttop, totalwidth/6, totalheight/6));
+			Pen.color_(highlightcolor);
+			Pen.fill;
+		};
+
+		Pen.addRect(Rect(left, top, totalwidth/9, totalheight/9));
+		Pen.color_(color);
+		Pen.fill;
+
+		if (sensor[\showcalibration] == true) {
+			var minimum = "" ++ sensor[\min];
+			var maximum = "" ++ sensor[\max];
+			Pen.color_(Color.white).stringCenteredIn(minimum ++ "\n" ++ maximum, Rect(left, top, totalwidth/9, totalheight/9));
+				Pen.stroke;
+		};
+	});
+});
+~sensormodel.safeReg(\setDefaults, {
+	|self, calibration |
+
+	4.do {
+		|y|
+		4.do {
+			|x|
+			var linindex = y*4 + x;
+			self[linindex.asSymbol] = (
+				\x: x,
+				\y: y,
+				\linindex:linindex,
+				\min: calibration[linindex.asSymbol][\min],
+				\max: calibration[linindex.asSymbol][\max],
+				\highlight: \none,
+				\showcalibration: false,
+				\val:0);
+		};
+	};
+});
+
+~sensormodel.registerOscListener(
+	OSCFunc({
+		|msg|
+		var x = msg[1];
+		var y = msg[2];
+		var value = msg[3];
+		var linindex = y*4 + x;
+	~sensormodel.setVal(linindex, value);
 	//("received"+x+y+value).postln;
-}, '/gui');
+}, '/gui'));
 
 ~communication = (
 		\safeReg : {
@@ -186,8 +292,8 @@ f = OSCFunc({
 	~calibration[\nextbutton].enabled_(true);
 	~calibration[\calstate] = (\idx: 0, \method: \slow);
 	~calibration[\status].string_("Please close sensor 1 and press next");
-	sensormodel[\0][\highlight] = \min;
-	sensormodel[\0][\showcalibration] = true;
+	~sensormodel.setHighlight(0, \min);
+	~sensormodel.setShowcalibration(0, true);
 }));
 ~calibration.safeReg(\fastcalbutton, Button().states_([["Fast calibrate"]]).action_({
 	~calibration[\calbutton].enabled_(false);
@@ -197,8 +303,8 @@ f = OSCFunc({
 	~calibration[\status].string_("Cover ALL sensors and press next.");
 	16.do {
 		|idx|
-		sensormodel[idx.asSymbol][\highlight] = \min;
-		sensormodel[idx.asSymbol][\showcalibration] = true;
+		~sensormodel.setHighlight(idx, \min);
+		~sensormodel.setShowcalibration(idx, true);
 	}
 });
 );
@@ -208,12 +314,12 @@ f = OSCFunc({
 	var calindex = ~calibration[\calstate][\idx];
 	var buttonindex = calindex.div(2);
 	var currentoperation = if (calindex % 2 == 0) { \min } { \max };
-	var calmethod = ~calibration[\calstate][\method];
+	var calmethod = ~calibration[\calstate][\method].debug("cal method");
 	var sensorvalues = [];
 	if (calmethod == \slow) {
 		fork {
 			10.do {
-				sensorvalues = sensorvalues ++ sensormodel[buttonindex.asSymbol][\val];
+				sensorvalues = sensorvalues ++ ~sensormodel.val(buttonindex);
 				0.05.wait;
 			};
 
@@ -222,7 +328,7 @@ f = OSCFunc({
 			} {
 				~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
 			};
-			sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
+			~sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
 
 			if (calindex == 31) {
 				// last step done: reset everything
@@ -232,25 +338,25 @@ f = OSCFunc({
 					~calibration[\nextbutton].enabled_(false);
 					~calibration[\status].string_("");
 				};
-				~calibration[\calstate] = (\idx:0);
-				sensormodel[buttonindex.asSymbol][\highlight] = \none;
+				~calibration[\calstate] = (\idx:0, \method:\slow);
+				~sensormodel.setHighlight(buttonindex, \none);
 				16.do {
 					| idx |
-					sensormodel[idx.asSymbol][\showcalibration] = false;
+					~sensormodel.setShowcalibration(idx, false);
 				};
 			} {
 				// go to next step and set up texts for next step
-				~calibration[\calstate] = (\idx:calindex+1);
+				~calibration[\calstate] = (\idx:calindex+1,\method:\slow);
 				// setup texts and states for next step
 				if (currentoperation == \min) {
 					defer { ~calibration[\status].string_("Please open sensor" + (buttonindex + 1) + "and press next"); };
-					sensormodel[buttonindex.asSymbol][\highlight] = \max;
-					sensormodel[buttonindex.asSymbol][\showcalibration] = true;
+					~sensormodel.setHighlight(buttonindex, \max);
+					~sensormodel.setShowcalibration(buttonindex, true);
 				} {
 					defer { ~calibration[\status].string_("Please close sensor" + (buttonindex + 2) + "and press next"); };
-					sensormodel[buttonindex.asSymbol][\highlight] = \none;
-					sensormodel[(buttonindex+1).asSymbol][\highlight] = \min;
-					sensormodel[(buttonindex+1).asSymbol][\showcalibration] = true;
+					~sensormodel.setHighlight(buttonindex, \none);
+					~sensormodel.setHighlight(buttonindex+1, \min);
+					~sensormodel.setShowcalibration(buttonindex+1, true);
 				};
 			};
 		};
@@ -261,26 +367,26 @@ f = OSCFunc({
 		16.do {
 			|idx|
 			sensorvalues[idx.asSymbol] = [];
-			sensormodel[idx.asSymbol][\highlight] = if (currentoperation == \min) { \max } { \min };
+			~sensormodel.setHighlight(idx, if (currentoperation == \min) { \max } { \min });
 		};
 		fork {
 			10.do {
 				|meas|
 				16.do {
 					|sensoridx|
-					sensorvalues[sensoridx.asSymbol] = sensorvalues[sensoridx.asSymbol] ++ sensormodel[sensoridx.asSymbol][\val];
+					sensorvalues[sensoridx.asSymbol] = sensorvalues[sensoridx.asSymbol] ++ ~sensormodel.val(sensoridx);
 				};
 				0.2.wait;
 			};
 			16.do {
 				| sensoridx |
 				if (calindex == 0) {
-					sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
+					~sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
 					defer {
 						~calibration[\status].string_("Open ALL sensors and click next.");
 					};
 				} {
-					sensormodel[sensoridx.asSymbol][\max] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].maxIndex];
+					~sensormodel[sensoridx.asSymbol][\max] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].maxIndex];
 				};
 			};
 			~calibration[\calstate][\idx] = calindex + 1;
@@ -289,8 +395,8 @@ f = OSCFunc({
 		if (calindex > 0) {
 			16.do {
 				|idx|
-				sensormodel[idx.asSymbol][\highlight] = \none;
-				sensormodel[idx.asSymbol][\showcalibration] = \false;
+				~sensormodel.setHighlight(idx, \none);
+				~sensormodel.setShowcalibration(idx, false);
 			};
 			defer {
 				~calibration[\status].string_("");
@@ -303,23 +409,9 @@ f = OSCFunc({
 	};
 }).enabled_(false));
 
-~calibration.safeReg(\calstate, (\idx: 0));
+~calibration.safeReg(\calstate, (\idx: 0, \method:\slow));
 
-
-4.do {
-	|y|
-	4.do {
-		|x|
-		var linindex = y*4 + x;
-		sensormodel[linindex.asSymbol] = (\x: x, \y: y, \linindex:linindex,
-			\min: ~calibration[linindex.asSymbol][\min],
-			\max: ~calibration[linindex.asSymbol][\max],
-			\highlight: \none,
-			\showcalibration: false,
-			\val:0);
-	};
-};
-
+~sensormodel.setDefaults(~calibration);
 ~communication.startSerialPortThread(
 	[
 		//	[~communication[\internal], ~communication[\debug_callback]],
@@ -352,10 +444,10 @@ s.waitForBoot({
 		while (true) {
 			drones.do({
 				|drone, droneidx|
-				var sensor = sensormodel[droneidx.asSymbol];
+				var sensor = ~sensormodel[droneidx.asSymbol];
 				var freq = (droneidx + 60).midicps;
 				drone.set(\pulsefreq, sensor[\val].linexp(sensor[\min], sensor[\max], 0.5, 20.0));
-				drone.set(\amp, sensor[\val].linlin(sensor[\min], sensor[\max]-20, 0.5, 0.0));
+				drone.set(\amp, sensor[\val].linlin(sensor[\min], sensor[\max]-20, 0.7, 0.0));
 			});
 			0.2.wait;
 		};
@@ -366,41 +458,7 @@ s.waitForBoot({
 	v.resize = 5;
 	v.background_(Color.gray(0.8));
 	v.animate_(true);
-	v.drawFunc={|uview|
-		var totalwidth = uview.bounds.width;
-		var totalheight= uview.bounds.height;
-		sensormodel.do({
-			| sensor |
-			var x = sensor[\x];
-			var y = sensor[\y];
-			var left = ((x*2) + 1)*totalwidth/9;
-			var top = ((y*2) + 1)*totalheight/9;
-			var color = Color(sensor[\val].linlin(sensor[\min], sensor[\max], 0, 1));
-			var highlightcolor = if (sensor[\highlight] == \min) { Color(0, 0, 1.0); } { Color(0.5, 0.5, 1.0); };
-
-			if (sensor[\highlight] != \none) {
-				var extrawidth = (totalwidth/6) - (totalwidth/9);
-				var extraheight = (totalheight/6) - (totalheight/9);
-				var highlightleft = left - (extrawidth/2.0);
-				var highlighttop = top - (extraheight/2.0);
-				Pen.addRect(Rect(highlightleft, highlighttop, totalwidth/6, totalheight/6));
-				Pen.color_(highlightcolor);
-				Pen.fill;
-			};
-
-			Pen.addRect(Rect(left, top, totalwidth/9, totalheight/9));
-			Pen.color_(color);
-			Pen.fill;
-
-			if (sensor[\showcalibration] == true) {
-				var minimum = "" ++ sensor[\min];
-				var maximum = "" ++ sensor[\max];
-				Pen.color_(Color.white).stringCenteredIn(minimum ++ "\n" ++ maximum, Rect(left, top, totalwidth/9, totalheight/9));
-				Pen.stroke;
-			};
-
-		});
-	};
+	v.drawFunc= ~sensormodel[\drawFunc];
 	v.mouseDownAction={v.refresh};
 	w.layout_(VLayout(
 		HLayout(v),

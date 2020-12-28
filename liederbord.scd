@@ -2,28 +2,46 @@
 var drones;
 
 var max_value = 900; // to be calibrated
-var drop_godot_msg = 10; // only send one in 20 msgs to godot to avoid overloading the system
+var uppermargin = 20;
+var lowermargin = 0;
 
-
-var internal = NetAddr("127.0.0.1", NetAddr.langPort); // loopback
-var godot = NetAddr("127.0.0.1", 4242); // godot port
 var sensormodel = ();
-var startOfSequence = $@;
-var endOfSequence = $#;
-var numberSeparator = $;;
 
-var arduino  = "/dev/ttyACM0";
-var baudrate = 9600;
-var port = SerialPort(arduino, baudrate: baudrate, crtscts: true);
+f = OSCFunc({
+	|msg|
+	var x = msg[1];
+	var y = msg[2];
+	var value = msg[3];
+	var linindex = y*4 + x;
+	sensormodel[linindex.asSymbol][\val] = value;
+	//("received"+x+y+value).postln;
+}, '/gui');
 
-var drop_msg = 0;
-
-var debug_callback = {
-	| netaddr, list_of_values |
+~communication = (
+		\safeReg : {
+		// adding methods to the event using safeReg will warn you if you overwrite methods
+		// that already have a pre-defined meaning (like: "next").
+		| self, name, implementation, verbose=0 |
+		var symbolicname = name.asSymbol;
+		if (self.respondsTo(symbolicname)) {
+			("Error! Registering" + "\\" ++ symbolicname + "would overwrite a member that exists already.").postln;
+		} {
+			if (self.keys.includes(symbolicname)) {
+				("Error! Cannot register" + "\\" ++ symbolicname + "twice.").postln;
+			} {
+				if (verbose != 0) {
+					("Registered" + "\\" ++ symbolicname ++ ".").postln;
+				};
+				self[symbolicname] = implementation;
+			};
+		};
+	};
+);
+~communication.safeReg(\debug_callback, {
+	| self, netaddr, list_of_values |
 	list_of_values.debug("[DEBUG] received: ");
-};
-
-var send_supercollider = {
+});
+~communication.safeReg(\send_supercollider, {
 	| netaddr, list_of_values |
 	4.do {
 		| y |
@@ -35,9 +53,8 @@ var send_supercollider = {
 			};
 		};
 	};
-};
-
-var send_godot = {
+});
+~communication.safeReg(\send_godot, {
 	| netaddr, list_of_values |
 	4.do {
 		| y |
@@ -47,12 +64,12 @@ var send_godot = {
 			if (list_of_values.size > linindex) {
 				var value = list_of_values[linindex];
 				var idx = linindex.asSymbol;
-				if (drop_msg < drop_godot_msg) {
-					drop_msg = drop_msg + 1;
+				if (~communication[\drop_msg] < ~communication[\drop_godot_msg]) {
+					~communication[\drop_msg] = ~communication[\drop_msg] + 1;
 				}
 				/*else*/
 				{
-					drop_msg = 0;
+					~communication[\drop_msg] = 0;
 					netaddr.sendMsg("/" ++ linindex ++ "/set/color",
 						x,
 						y,
@@ -65,24 +82,23 @@ var send_godot = {
 			};
 		};
 	};
-};
-
-var startSerialPortThread = {
-	| list_of_netaddr_callback_pairs |
+});
+~communication.safeReg(\startSerialPortThread, {
+	| self, list_of_netaddr_callback_pairs |
 	fork {
 		var values = [];
 		var value_in_progress = "";
 		while {true} {
-			var val = port.read.asAscii;
+			var val = ~communication[\port].read.asAscii;
 			// val.debug("read");
-			if (val == startOfSequence) {
+			if (val == ~communication[\startOfSequence]) {
 				// start of new list of values
 				//"start new sequence".postln;
 				values = [];
 				value_in_progress = "";
 			}
 			/* else */ {
-				if (val == endOfSequence) {
+				if (val == ~communication[\endOfSequence]) {
 					// end of new list of values
 					//"end sequence and callback".postln;
 					if (value_in_progress != "") {
@@ -98,7 +114,7 @@ var startSerialPortThread = {
 				}
 				/* else */
 				{
-					if (val == numberSeparator) {
+					if (val == ~communication[\numberSeparator]) {
 						//"start new number".postln;
 						values = values.add(value_in_progress.asInteger);
 						value_in_progress = "";
@@ -113,17 +129,18 @@ var startSerialPortThread = {
 			};
 		};
 	};
-};
+});
 
-f = OSCFunc({
-	|msg|
-	var x = msg[1];
-	var y = msg[2];
-	var value = msg[3];
-	var linindex = y*4 + x;
-	sensormodel[linindex.asSymbol][\val] = value;
-	//("received"+x+y+value).postln;
-}, '/gui');
+~communication.safeReg(\internal, NetAddr("127.0.0.1", NetAddr.langPort));
+~communication.safeReg(\godot, NetAddr("127.0.0.1", 4242));
+~communication.safeReg(\startOfSequence, $@);
+~communication.safeReg(\endOfSequence, $#);
+~communication.safeReg(\numberSeparator, $;);
+~communication.safeReg(\arduino, "/dev/ttyACM0");
+~communication.safeReg(\baudrate, 9600);
+~communication.safeReg(\port, SerialPort(port:~communication[\arduino], baudrate: ~communication[\baudrate], crtscts: true));
+~communication.safeReg(\drop_msg, 0);
+~communication.safeReg(\drop_godot_msg, 10);
 
 ~calibration = (
 	\0 : (\min: 270, \max: 900),
@@ -163,65 +180,124 @@ f = OSCFunc({
 	};
 );
 
-~calibration.safeReg(\calbutton, Button().states_([["Calibrate"]]).action_({
+~calibration.safeReg(\calbutton, Button().states_([["Slow calibrate"]]).action_({
 	~calibration[\calbutton].enabled_(false);
+	~calibration[\fastcalbutton].enabled_(false);
 	~calibration[\nextbutton].enabled_(true);
-	~calibration[\calstate] = (\idx: 0);
+	~calibration[\calstate] = (\idx: 0, \method: \slow);
 	~calibration[\status].string_("Please close sensor 1 and press next");
 	sensormodel[\0][\highlight] = \min;
 	sensormodel[\0][\showcalibration] = true;
 }));
+~calibration.safeReg(\fastcalbutton, Button().states_([["Fast calibrate"]]).action_({
+	~calibration[\calbutton].enabled_(false);
+	~calibration[\fastcalbutton].enabled_(false);
+	~calibration[\nextbutton].enabled_(true);
+	~calibration[\calstate] = (\idx: 0, \method: \fast);
+	~calibration[\status].string_("Cover ALL sensors and press next.");
+	16.do {
+		|idx|
+		sensormodel[idx.asSymbol][\highlight] = \min;
+		sensormodel[idx.asSymbol][\showcalibration] = true;
+	}
+});
+);
 
 ~calibration.safeReg(\status, TextField());
 ~calibration.safeReg(\nextbutton, Button().states_([["Next"]]).action_({
 	var calindex = ~calibration[\calstate][\idx];
 	var buttonindex = calindex.div(2);
 	var currentoperation = if (calindex % 2 == 0) { \min } { \max };
+	var calmethod = ~calibration[\calstate][\method];
 	var sensorvalues = [];
-
-	calindex.debug("cal index");
-	buttonindex.debug("button index");
-	currentoperation.debug("current operation");
-
-	fork {
-		10.do {
-			sensorvalues = sensorvalues ++ sensormodel[buttonindex.asSymbol][\val];
-			0.05.wait;
-		};
-
-		if (currentoperation == \min) {
-			~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.minIndex];
-		} {
-			~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
-		};
-		sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
-
-		if (calindex == 31) {
-			// last step done: reset everything
-			defer {
-				~calibration[\calbutton].enabled_(true);
-				~calibration[\nextbutton].enabled_(false);
-				~calibration[\status].string_("");
+	if (calmethod == \slow) {
+		fork {
+			10.do {
+				sensorvalues = sensorvalues ++ sensormodel[buttonindex.asSymbol][\val];
+				0.05.wait;
 			};
-			~calibration[\calstate] = (\idx:0);
-			sensormodel[buttonindex.asSymbol][\highlight] = \none;
-			16.do {
-				| idx |
-				sensormodel[idx.asSymbol][\showcalibration] = false;
-			};
-		} {
-			// go to next step and set up texts for next step
-			~calibration[\calstate] = (\idx:calindex+1);
-			// setup texts and states for next step
+
 			if (currentoperation == \min) {
-				defer { ~calibration[\status].string_("Please open sensor" + (buttonindex + 1) + "and press next"); };
-				sensormodel[buttonindex.asSymbol][\highlight] = \max;
-				sensormodel[buttonindex.asSymbol][\showcalibration] = true;
+				~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.minIndex];
 			} {
-				defer { ~calibration[\status].string_("Please close sensor" + (buttonindex + 2) + "and press next"); };
+				~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
+			};
+			sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
+
+			if (calindex == 31) {
+				// last step done: reset everything
+				defer {
+					~calibration[\calbutton].enabled_(true);
+					~calibration[\fastcalbutton].enabled_(true);
+					~calibration[\nextbutton].enabled_(false);
+					~calibration[\status].string_("");
+				};
+				~calibration[\calstate] = (\idx:0);
 				sensormodel[buttonindex.asSymbol][\highlight] = \none;
-				sensormodel[(buttonindex+1).asSymbol][\highlight] = \min;
-				sensormodel[(buttonindex+1).asSymbol][\showcalibration] = true;
+				16.do {
+					| idx |
+					sensormodel[idx.asSymbol][\showcalibration] = false;
+				};
+			} {
+				// go to next step and set up texts for next step
+				~calibration[\calstate] = (\idx:calindex+1);
+				// setup texts and states for next step
+				if (currentoperation == \min) {
+					defer { ~calibration[\status].string_("Please open sensor" + (buttonindex + 1) + "and press next"); };
+					sensormodel[buttonindex.asSymbol][\highlight] = \max;
+					sensormodel[buttonindex.asSymbol][\showcalibration] = true;
+				} {
+					defer { ~calibration[\status].string_("Please close sensor" + (buttonindex + 2) + "and press next"); };
+					sensormodel[buttonindex.asSymbol][\highlight] = \none;
+					sensormodel[(buttonindex+1).asSymbol][\highlight] = \min;
+					sensormodel[(buttonindex+1).asSymbol][\showcalibration] = true;
+				};
+			};
+		};
+
+	} {
+		// fast method
+		var sensorvalues = ();
+		16.do {
+			|idx|
+			sensorvalues[idx.asSymbol] = [];
+			sensormodel[idx.asSymbol][\highlight] = if (currentoperation == \min) { \max } { \min };
+		};
+		fork {
+			10.do {
+				|meas|
+				16.do {
+					|sensoridx|
+					sensorvalues[sensoridx.asSymbol] = sensorvalues[sensoridx.asSymbol] ++ sensormodel[sensoridx.asSymbol][\val];
+				};
+				0.2.wait;
+			};
+			16.do {
+				| sensoridx |
+				if (calindex == 0) {
+					sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
+					defer {
+						~calibration[\status].string_("Open ALL sensors and click next.");
+					};
+				} {
+					sensormodel[sensoridx.asSymbol][\max] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].maxIndex];
+				};
+			};
+			~calibration[\calstate][\idx] = calindex + 1;
+		};
+
+		if (calindex > 0) {
+			16.do {
+				|idx|
+				sensormodel[idx.asSymbol][\highlight] = \none;
+				sensormodel[idx.asSymbol][\showcalibration] = \false;
+			};
+			defer {
+				~calibration[\status].string_("");
+				~calibration[\nextbutton].enabled_(false);
+				~calibration[\calbutton].enabled_(true);
+				~calibration[\fastcalbutton].enabled_(true);
+				~calibration[\calstate] = (\idx:0, \method:\slow);
 			};
 		};
 	};
@@ -244,18 +320,18 @@ f = OSCFunc({
 	};
 };
 
-startSerialPortThread.(
+~communication.startSerialPortThread(
 	[
-//	[internal, debug_callback],
-	[internal, send_supercollider],
-//	[godot, send_godot]
+		//	[~communication[\internal], ~communication[\debug_callback]],
+		[~communication[\internal], ~communication[\send_supercollider]],
+		//	[~communication[\godot], ~communication[\send_godot]]
 	]
 );
 
 s.waitForBoot({
 	SynthDef(\osc, {
-		| out=0, freq=440, amp=0.2, pan=0, pulsefreq=1, par1=1 |
-		var sig = amp*LFSaw.ar(freq*WhiteNoise.ar().range(1.0/par1, 1.0*par1));
+		| out=0, freq=440, amp=0.2, pan=0, pulsefreq=1 |
+		var sig = amp*LFSaw.ar(freq);
 		var pulse = SinOsc.kr(pulsefreq, phase:2pi.rrand(0.0)).range(0,1);
 		var panned_sig = Pan2.ar(pulse*sig, pan);
 		Out.ar(out, panned_sig);
@@ -265,7 +341,11 @@ s.waitForBoot({
 
 	drones = Array.fill(16, {
 		|idx|
-		Synth(\osc, [\freq, (idx + 60).midicps, \amp, 0.1, \pan, 0.7.neg.rrand(0.7), \pulsefreq, idx.linlin(0,15,1,5) ]);
+		Synth(\osc, [
+			\freq, ((idx*2) + 60).midicps,
+			\amp, 0.1,
+			\pan, 0.7.neg.rrand(0.7),
+			\pulsefreq, idx.linlin(0,15,1,2*pi) ]);
 	});
 
 	fork {
@@ -274,8 +354,8 @@ s.waitForBoot({
 				|drone, droneidx|
 				var sensor = sensormodel[droneidx.asSymbol];
 				var freq = (droneidx + 60).midicps;
-				drone.set(\par1, sensor[\val].linlin(sensor[\min], sensor[\max], 0.25, 4.0));
-
+				drone.set(\pulsefreq, sensor[\val].linexp(sensor[\min], sensor[\max], 0.5, 20.0));
+				drone.set(\amp, sensor[\val].linlin(sensor[\min], sensor[\max]-20, 0.5, 0.0));
 			});
 			0.2.wait;
 		};
@@ -322,21 +402,20 @@ s.waitForBoot({
 		});
 	};
 	v.mouseDownAction={v.refresh};
-	w.layout_(VLayout(HLayout(v),
-		HLayout(~calibration[\calbutton]),
+	w.layout_(VLayout(
+		HLayout(v),
+		HLayout(~calibration[\fastcalbutton], ~calibration[\calbutton]),
 		HLayout(~calibration[\status], ~calibration[\nextbutton])));
 	w.front;
 
 });
 
 CmdPeriod.doOnce {
-	port.doneAction = { "Serial communication closed.".postln; };
-	port.close;
-	Window.closeAll;
-	OSCdef.freeAll;
-	drones.do({|el| el.free; });
-	Server.killAll;
-}
+		~communication[\port].doneAction = { "Serial communication closed.".postln; };
+		~communication[\port].close;
+		Window.closeAll;
+		OSCdef.freeAll;
+		drones.do({|el| el.free; });
+		Server.killAll;
+	};
 );
-
-)

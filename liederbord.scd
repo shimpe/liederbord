@@ -37,11 +37,13 @@ var sns = [];
 ~pattern_detector.safeReg(\last_recognized_gesture, \none);
 ~pattern_detector.safeReg(\update_counter, 0);
 ~pattern_detector.safeReg(\error_tolerance, 5); // bigger error for all shapes results in shape \none
-~pattern_detector.safeReg(\max_event_counter, 30);
+~pattern_detector.safeReg(\max_event_counter, 10);
 ~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
 	| shapeerror |
-	("Recognized a" + shapeerror[\shape] + "with strength" + shapeerror[\strength] + "and with error" + shapeerror[\error]).postln;
+	if (~command_sequence_recognizer.notNil) {
+		~command_sequence_recognizer.add_input(shapeerror[\mytype]);
+	};
 });
 ~pattern_detector.safeReg(\norm, {
 	|self, vector |
@@ -181,13 +183,12 @@ var sns = [];
 		var best_type = types[min_error_idx];
 		var best_shape = known_shapes[types[min_error_idx]];
 		var strength = dc_level_over_no_of_sensors*best_shape[\vector].count({|el| el!=0;}); // dc_level * #sensors involved in pattern / #total no of sensors
-		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength);
+		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength, \mytype: best_type);
 		if (self[\callback].notNil) {
 			self[\callback].(self[\last_recognized_gesture]);
 		};
 	} {
-		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:0);
-		//self[\last_recognized_gesture].debug("not chosen because of error");
+		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:0, \mytype: \none);
 	};
 });
 
@@ -656,9 +657,9 @@ var sns = [];
 	memory = memory.add(~pattern_detector[\known_shapes][input][\mychar]);
 	self[\command_table].do({
 		| command |
-		var regex = command[\regex].debug("regex");
-		var regex_size = regex.size.debug("regex size");
-		var check = self[\memory].copy().keep(regex_size.neg).join.debug("check");
+		var regex = command[\regex];
+		var regex_size = regex.size;
+		var check = self[\memory].copy().keep(regex_size.neg).join;
 		if (regex == check) {
 			var handler = command[\handler];
 			handler.();
@@ -666,10 +667,10 @@ var sns = [];
 	});
 });
 
-~command_sequence_recognizer.register_sequence([\left, \right], { "left/right matched".postln; });
+~command_sequence_recognizer.register_sequence([\bottom_left_quadrant, \bottom_right_quadrant], { "left quad/right quad matched".postln; });
 
 fork {
-	while(true) {
+	while (true) {
 		~pattern_detector.add_state(~sensormodel, ~calibration);
 		0.1.wait;
 	};

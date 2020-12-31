@@ -65,56 +65,64 @@ var sns = [];
 	};
 	~pattern_detector.normalize(sum)
 });
+~pattern_detector.safeReg(\makepat, {
+	|self, list_of_sensors |
+	(\vector: ~pattern_detector.mkshape(list_of_sensors), \sensors: list_of_sensors.copy())
+});
+
 ~pattern_detector.safeReg(\known_shapes, (
 	// single-sensor patterns
 	/*
-	\1: (\vector: ~pattern_detector.mkshape([0]), \mytype:\1, \myname:"sensor 1"),
-	\2: (\vector: ~pattern_detector.mkshape([1]), \mytype:\2, \myname:"sensor 2"),
-	\3: (\vector: ~pattern_detector.mkshape([2]), \mytype:\3, \myname:"sensor 3"),
-	\4: (\vector: ~pattern_detector.mkshape([3]), \mytype:\4, \myname:"sensor 4"),
-	\5: (\vector: ~pattern_detector.mkshape([4]), \mytype:\5, \myname:"sensor 5"),
-	\8: (\vector: ~pattern_detector.mkshape([7]), \mytype:\8, \myname:"sensor 8"),
-	\9: (\vector: ~pattern_detector.mkshape([8]), \mytype:\9, \myname:"sensor 9"),
-	\12: (\vector: ~pattern_detector.mkshape([11]), \mytype:\12, \myname:"sensor 12"),
-	\13: (\vector: ~pattern_detector.mkshape([12]), \mytype:\13, \myname:"sensor 13"),
-	\14: (\vector: ~pattern_detector.mkshape([13]), \mytype:\14, \myname:"sensor 14"),
-	\15: (\vector: ~pattern_detector.mkshape([14]), \mytype:\15, \myname:"sensor 15"),
-	\16: (\vector: ~pattern_detector.mkshape([15]), \mytype:\16, \myname:"sensor 16"),
+	\1: ~pattern_detector.makepat([0],
+	\2: ~pattern_detector.makepat([1],
+	\3: ~pattern_detector.makepat([2],
+	\4: ~pattern_detector.makepat([3],
+	\5: ~pattern_detector.makepat([4],
+	\8: ~pattern_detector.makepat([7],
+	\9: ~pattern_detector.makepat([8],
+	\12: ~pattern_detector.makepat([11],
+	\13: ~pattern_detector.makepat([12],
+	\14: ~pattern_detector.makepat([13],
+	\15: ~pattern_detector.makepat([14],
+	\16: ~pattern_detector.makepat([15],
 	*/
 
 	// one-handed patterns
-	\left  : (\vector:  ~pattern_detector.mkshape([0,4,8,12])),
-	\wide_left:(\vector:  ~pattern_detector.mkshape([0,1,4,5,8,9,12,13])),
-	\right : (\vector:  ~pattern_detector.mkshape([3,7,11,15])),
-	\wide_right:(\vector: ~pattern_detector.mkshape([2,3,6,7,10,11,14,15])),
-	\top   : (\vector:  ~pattern_detector.mkshape([0,1,2,3])),
-	\wide_top: (\vector:  ~pattern_detector.mkshape([0,1,2,3,4,5,6,7])),
-	\bottom: (\vector:  ~pattern_detector.mkshape([12,13,14,15])),
-	\wide_bottom:(\vector:~pattern_detector.mkshape([8,9,10,11,12,13,14,15])),
-	\top_left_corner : (\vector: ~pattern_detector.mkshape([0,1,2,3,4,8,12])),
-	\top_right_corner : (\vector: ~pattern_detector.mkshape([0,1,2,3,7,11,15])),
-	\top_left_quadrant : (\vector: ~pattern_detector.mkshape([0,1,4,5])),
-	\top_right_quadrant : (\vector: ~pattern_detector.mkshape([2,3,6,7])),
-	\bottom_left_quadrant: (\vector: ~pattern_detector.mkshape([8,9,12,13])),
-	\bottom_right_quadrant: (\vector: ~pattern_detector.mkshape([10,11,14,15])),
-	\horizontal_middle: (\vector: ~pattern_detector.mkshape([4,5,6,7,8,9,10,11])),
-	\vertical_middle: (\vector: ~pattern_detector.mkshape([1,2,5,6,9,10,13,14])),
-	\top_left_two_horizontal: (\vector: ~pattern_detector.mkshape([0,1])),
-	\top_left_two_vertical: (\vector: ~pattern_detector.mkshape([0,4])),
-	\bottom_left_two_vertical: (\vector: ~pattern_detector.mkshape([8,12])),
-	\bottom_left_two_horizontal: (\vector: ~pattern_detector.mkshape([12,13])),
-	\bottom_right_two_horizontal: (\vector: ~pattern_detector.mkshape([14,15])),
-	\bottom_right_two_vertical: (\vector: ~pattern_detector.mkshape([11,15])),
-	\top_right_two_vertical: (\vector: ~pattern_detector.mkshape([3,7])),
-	\top_right_two_horizontal: (\vector: ~pattern_detector.mkshape([2,3])),
+	\left  : ~pattern_detector.makepat([0,4,8,12]),
+	\wide_left: ~pattern_detector.makepat([0,1,4,5,8,9,12,13]),
+	\right : ~pattern_detector.makepat([3,7,11,15]),
+	\wide_right: ~pattern_detector.makepat([2,3,6,7,10,11,14,15]),
+	\top   : ~pattern_detector.makepat([0,1,2,3]),
+	\wide_top: ~pattern_detector.makepat([0,1,2,3,4,5,6,7]),
+	\bottom: ~pattern_detector.makepat([12,13,14,15]),
+	\wide_bottom: ~pattern_detector.makepat([8,9,10,11,12,13,14,15]),
+	\top_left_corner : ~pattern_detector.makepat([0,1,2,3,4,8,12]),
+	\top_right_corner : ~pattern_detector.makepat([0,1,2,3,7,11,15]),
+	\top_left_quadrant : ~pattern_detector.makepat([0,1,4,5]),
+	\top_right_quadrant : ~pattern_detector.makepat([2,3,6,7]),
+	\bottom_left_quadrant: ~pattern_detector.makepat([8,9,12,13]),
+	\bottom_right_quadrant: ~pattern_detector.makepat([10,11,14,15]),
+	\horizontal_middle: ~pattern_detector.makepat([4,5,6,7,8,9,10,11]),
+	\vertical_middle: ~pattern_detector.makepat([1,2,5,6,9,10,13,14]),
+
+	/*
+	\top_left_two_horizontal: ~pattern_detector.makepat([0,1]),
+	\top_left_two_vertical: ~pattern_detector.makepat([0,4]),
+	\bottom_left_two_vertical: ~pattern_detector.makepat([8,12]),
+	\bottom_left_two_horizontal: ~pattern_detector.makepat([12,13]),
+	\bottom_right_two_horizontal: ~pattern_detector.makepat([14,15]),
+	\bottom_right_two_vertical: ~pattern_detector.makepat([11,15]),
+	\top_right_two_vertical: ~pattern_detector.makepat([3,7]),
+	\top_right_two_horizontal: ~pattern_detector.makepat([2,3]),
+	*/
 
 	// two handed patterns
-	\bottom_left_corner : (\vector: ~pattern_detector.mkshape([0,4,8,12,13,14,15])),
-	\bottom_right_corner : (\vector: ~pattern_detector.mkshape([3,7,11,12,13,14,15])),
-	\left_and_right_column: (\vector: ~pattern_detector.mkshape([0,3,4,7,8,11,12,15])),
-	\top_and_bottom_row: (\vector: ~pattern_detector.mkshape([0,1,2,3,12,13,14,15]), \mytype:\top_and_bottom_row, \myname: "top and bottom row"),
-	\top_left_to_bottom_right_opposing_quadrants: (\vector: ~pattern_detector.mkshape([0,1,4,5,10,11,14,15])),
-	\top_right_to_bottom_left_opposing_quadrants: (\vector: ~pattern_detector.mkshape([2,3,6,7,8,9,12,13])),
+	\bottom_left_corner : ~pattern_detector.makepat([0,4,8,12,13,14,15]),
+	\bottom_right_corner : ~pattern_detector.makepat([3,7,11,12,13,14,15]),
+	\left_and_right_column: ~pattern_detector.makepat([0,3,4,7,8,11,12,15]),
+	\top_and_bottom_row: ~pattern_detector.makepat([0,1,2,3,12,13,14,15]),
+	\top_left_to_bottom_right_opposing_quadrants: ~pattern_detector.makepat([0,1,4,5,10,11,14,15]),
+	\top_right_to_bottom_left_opposing_quadrants: ~pattern_detector.makepat([2,3,6,7,8,9,12,13]),
 ));
 
 // augment shape definitions with some meta information

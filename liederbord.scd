@@ -5,6 +5,122 @@ var max_value = 900; // to be calibrated
 var uppermargin = 20;
 var lowermargin = 0;
 
+~pattern_detector = (
+		\safeReg : {
+		// adding methods to the event using safeReg will warn you if you overwrite methods
+		// that already have a pre-defined meaning (like: "next").
+		| self, name, implementation, verbose=0 |
+		var symbolicname = name.asSymbol;
+		if (self.respondsTo(symbolicname)) {
+			("Error! Registering" + "\\" ++ symbolicname + "would overwrite a member that exists already.").postln;
+		} {
+			if (self.keys.includes(symbolicname)) {
+				("Error! Cannot register" + "\\" ++ symbolicname + "twice.").postln;
+			} {
+				if (verbose != 0) {
+					("Registered" + "\\" ++ symbolicname ++ ".").postln;
+				};
+				self[symbolicname] = implementation;
+			};
+		};
+	};
+);
+
+~pattern_detector.safeReg(\last_recognized_gesture, \none);
+~pattern_detector.safeReg(\update_counter, 0);
+~pattern_detector.safeReg(\error_tolerance, 5); // bigger error for all shapes results in shape \none
+~pattern_detector.safeReg(\max_event_counter, 30);
+~pattern_detector.safeReg(\state, (0!16)!~pattern_detector[\max_event_counter]);
+~pattern_detector.safeReg(\callback, {
+	| shapeerror |
+	("Recognized a" + shapeerror[\shape] + "with strength" + shapeerror[\strength] + "and with error" + shapeerror[\error]).postln;
+});
+~pattern_detector.safeReg(\norm, {
+	|self, vector |
+	vector.sumsqr(0!16).sum;
+});
+~pattern_detector.safeReg(\normalize, {
+	|self, vector |
+	var norm = self.norm(vector);
+	vector.collect({ | el | el /  norm });
+});
+~pattern_detector.safeReg(\known_shapes, (
+	\left  : (\vector:  ~pattern_detector.normalize([1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0]), \mytype:\left, \myname: "left"),
+	\fatleft:(\vector:  ~pattern_detector.normalize([1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]), \mytype:\fatleft, \myname: "wide_left"),
+	\right : (\vector:  ~pattern_detector.normalize([0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1]), \mytype:\right, \myname: "right"),
+	\fatright:(\vector: ~pattern_detector.normalize([0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1]), \mytype:\fatright, \myname: "wide_right"),
+	\top   : (\vector:  ~pattern_detector.normalize([1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]), \mytype:\top, \myname: "top"),
+	\fattop: (\vector:  ~pattern_detector.normalize([1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0]), \mytype:\fattop, \myname: "wide_top"),
+	\bottom: (\vector:  ~pattern_detector.normalize([0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1]), \mytype:\bottom, \myname: "bottom"),
+	\fatbottom:(\vector:~pattern_detector.normalize([0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1]), \mytype:\fatbottom, \myname: "wide_bottom"),
+	\tlbr  : (\vector: ~pattern_detector.normalize([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), \mytype:\tlbr, \myname: "topleft_to_bottomright"),
+	\bottomleft_corner : (\vector: ~pattern_detector.normalize([1,0,0,0,1,0,0,0,1,0,0,0,1,1,1,1]), \mytype:\bottomleft_corner, \myname: "bottom left corner"),
+	\bottomright_corner : (\vector: ~pattern_detector.normalize([0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,1]), \mytype:\bottomright_corner, \myname: "bottom right corner"),
+	\topleft_corner : (\vector: ~pattern_detector.normalize([1,1,1,1,1,0,0,0,1,0,0,0,1,0,0,0]), \mytype:\topleft_corner, \myname: "top left corner"),
+	\topright_corner : (\vector: ~pattern_detector.normalize([1,1,1,1,0,0,0,1,0,0,0,1,0,0,0,1]), \mytype:\topright_corner, \myname:"top right corner"),
+	\topleft_quadrant : (\vector: ~pattern_detector.normalize([1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0]), \mytype:\topleft_quadrant, \myname:"top left quadrant"),
+	\topright_quadrant : (\vector: ~pattern_detector.normalize([0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0]), \mytype:\topright_quadrant, \myname:"top right quadrant"),
+	\bottomleft_quadrant: (\vector: ~pattern_detector.normalize([0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0]), \mytype:\bottomleft_quadrant, \myname:"bottom left quadrant"),
+	\bottomright_quadrant: (\vector: ~pattern_detector.normalize([0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1]), \mytype:\bottomright_quadrant, \myname:"bottom right quadrant"),
+	\horizontal_middle: (\vector: ~pattern_detector.normalize([0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0]), \mytype:\horizontal_middle, \myname:"horizontal middle"),
+	\vertical_middle: (\vector: ~pattern_detector.normalize([0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0]), \mytype:\vertical_middle, \myname:"vertical middle"),
+));
+~pattern_detector.safeReg(\add_state, {
+	|self, sensormodel, calibration |
+	var values = [];
+	16.do {
+		|sensoridx|
+		var val = sensormodel.val(sensoridx).linlin(
+			calibration.minval(sensoridx),
+			calibration.maxval(sensoridx),
+			1,
+			0);
+		values = values ++ val;
+	};
+	self[\state][self[\update_counter]] = values.copy();
+	self[\update_counter] = self[\update_counter] + 1;
+	if (self[\update_counter] >= self[\max_event_counter]) {
+		self.calculate_new_gesture;
+		self[\update_counter] = 0;
+		self[\state] = (0!16)!~pattern_detector[\max_event_counter];
+	};
+});
+~pattern_detector.safeReg(\calculate_new_gesture, {
+	|self|
+	var dc_level = self[\state].flatten.sum;
+	var dc_level_over_no_of_sensors = dc_level / 16;
+	var differences = (0!16)!(~pattern_detector[\max_event_counter] - 1);
+	var measured_shape, shapes=[], errors=[], types=[], min_error_idx=0, min_error=1000, shape=\none;
+	(~pattern_detector[\max_event_counter] - 1).do {
+		| timeidx |
+		var row1 = timeidx;
+		var row2 = timeidx + 1;
+		differences[timeidx] = (self[\state][row2] - self[\state][row1]).abs;
+	};
+	measured_shape = self.normalize(differences.sum);
+	self[\known_shapes].do {
+		|shape|
+		shapes = shapes ++ [shape[\myname]];
+		errors = errors ++ self.norm(shape[\vector] - measured_shape);
+		types = types ++ shape[\mytype];
+	};
+	min_error_idx = errors.minIndex;
+	min_error = errors[min_error_idx];
+	if (min_error < self[\error_tolerance]) {
+		var known_shapes = self[\known_shapes];
+		var best_type = types[min_error_idx];
+		var best_shape = known_shapes[types[min_error_idx]];
+		var strength = dc_level_over_no_of_sensors*best_shape[\vector].count({|el| el!=0;}); // dc_level * #sensors involved in pattern / #total no of sensors
+		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength);
+		if (self[\callback].notNil) {
+			self[\callback].(self[\last_recognized_gesture]);
+		};
+	} {
+		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:0);
+		//self[\last_recognized_gesture].debug("not chosen because of error");
+	};
+});
+
 ~sensormodel = (
 		\safeReg : {
 		// adding methods to the event using safeReg will warn you if you overwrite methods
@@ -143,6 +259,10 @@ var lowermargin = 0;
 		};
 	};
 );
+~communication.safeReg(\pattern_tracker, {
+	| self, netaddr, list_of_values |
+	~pattern_detector.add(list_of_values);
+});
 ~communication.safeReg(\debug_callback, {
 	| self, netaddr, list_of_values |
 	list_of_values.debug("[DEBUG] received: ");
@@ -285,6 +405,14 @@ var lowermargin = 0;
 		};
 	};
 );
+~calibration.safeReg(\minval, {
+	| self, sensoridx |
+	self[sensoridx.asSymbol][\min];
+});
+~calibration.safeReg(\maxval, {
+	| self, sensoridx |
+	self[sensoridx.asSymbol][\max];
+});
 
 ~calibration.safeReg(\calbutton, Button().states_([["Slow calibrate"]]).action_({
 	~calibration[\calbutton].enabled_(false);
@@ -314,7 +442,7 @@ var lowermargin = 0;
 	var calindex = ~calibration[\calstate][\idx];
 	var buttonindex = calindex.div(2);
 	var currentoperation = if (calindex % 2 == 0) { \min } { \max };
-	var calmethod = ~calibration[\calstate][\method].debug("cal method");
+	var calmethod = ~calibration[\calstate][\method];
 	var sensorvalues = [];
 	if (calmethod == \slow) {
 		fork {
@@ -419,6 +547,13 @@ var lowermargin = 0;
 		//	[~communication[\godot], ~communication[\send_godot]]
 	]
 );
+
+fork {
+	while(true) {
+		~pattern_detector.add_state(~sensormodel, ~calibration);
+		0.1.wait;
+	};
+};
 
 s.waitForBoot({
 	SynthDef(\osc, {

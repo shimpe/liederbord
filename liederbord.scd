@@ -1,9 +1,17 @@
 (
 var drones;
-
 var max_value = 900; // to be calibrated
 var uppermargin = 20;
 var lowermargin = 0;
+var sns = [];
+
+~sensors = 16;
+~sensors.do {
+	| sensoridx |
+	// make a list of [ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], [0,1,0,0,0,0,0,0,0,0,0,0,0,0,0], ..., [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]
+	// to represent a single sensor being active
+	sns = sns ++ [~sensors.collect({|idx| if (idx == sensoridx) {1} {0} })];
+};
 
 ~pattern_detector = (
 		\safeReg : {
@@ -25,50 +33,102 @@ var lowermargin = 0;
 		};
 	};
 );
-
+~pattern_detector.safeReg(\sns, sns);
 ~pattern_detector.safeReg(\last_recognized_gesture, \none);
 ~pattern_detector.safeReg(\update_counter, 0);
 ~pattern_detector.safeReg(\error_tolerance, 5); // bigger error for all shapes results in shape \none
 ~pattern_detector.safeReg(\max_event_counter, 30);
-~pattern_detector.safeReg(\state, (0!16)!~pattern_detector[\max_event_counter]);
+~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
 	| shapeerror |
 	("Recognized a" + shapeerror[\shape] + "with strength" + shapeerror[\strength] + "and with error" + shapeerror[\error]).postln;
 });
 ~pattern_detector.safeReg(\norm, {
 	|self, vector |
-	vector.sumsqr(0!16).sum;
+	vector.sumsqr(0!~sensors).sum;
 });
 ~pattern_detector.safeReg(\normalize, {
 	|self, vector |
 	var norm = self.norm(vector);
 	vector.collect({ | el | el /  norm });
 });
+~pattern_detector.safeReg(\mkshape, {
+	|self, list_of_sensors |
+	var sum = 0!~sensors;
+	list_of_sensors.do {
+		|sensoridx|
+		if (sensoridx >= ~sensors) {
+			"ERROR! Invalid sensor index passed to mkshape!".postln;
+		} {
+			sum = sum + self[\sns][sensoridx];
+		};
+	};
+	~pattern_detector.normalize(sum)
+});
 ~pattern_detector.safeReg(\known_shapes, (
-	\left  : (\vector:  ~pattern_detector.normalize([1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0]), \mytype:\left, \myname: "left"),
-	\fatleft:(\vector:  ~pattern_detector.normalize([1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]), \mytype:\fatleft, \myname: "wide_left"),
-	\right : (\vector:  ~pattern_detector.normalize([0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1]), \mytype:\right, \myname: "right"),
-	\fatright:(\vector: ~pattern_detector.normalize([0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1]), \mytype:\fatright, \myname: "wide_right"),
-	\top   : (\vector:  ~pattern_detector.normalize([1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]), \mytype:\top, \myname: "top"),
-	\fattop: (\vector:  ~pattern_detector.normalize([1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0]), \mytype:\fattop, \myname: "wide_top"),
-	\bottom: (\vector:  ~pattern_detector.normalize([0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1]), \mytype:\bottom, \myname: "bottom"),
-	\fatbottom:(\vector:~pattern_detector.normalize([0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1]), \mytype:\fatbottom, \myname: "wide_bottom"),
-	\tlbr  : (\vector: ~pattern_detector.normalize([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), \mytype:\tlbr, \myname: "topleft_to_bottomright"),
-	\bottomleft_corner : (\vector: ~pattern_detector.normalize([1,0,0,0,1,0,0,0,1,0,0,0,1,1,1,1]), \mytype:\bottomleft_corner, \myname: "bottom left corner"),
-	\bottomright_corner : (\vector: ~pattern_detector.normalize([0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,1]), \mytype:\bottomright_corner, \myname: "bottom right corner"),
-	\topleft_corner : (\vector: ~pattern_detector.normalize([1,1,1,1,1,0,0,0,1,0,0,0,1,0,0,0]), \mytype:\topleft_corner, \myname: "top left corner"),
-	\topright_corner : (\vector: ~pattern_detector.normalize([1,1,1,1,0,0,0,1,0,0,0,1,0,0,0,1]), \mytype:\topright_corner, \myname:"top right corner"),
-	\topleft_quadrant : (\vector: ~pattern_detector.normalize([1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0]), \mytype:\topleft_quadrant, \myname:"top left quadrant"),
-	\topright_quadrant : (\vector: ~pattern_detector.normalize([0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0]), \mytype:\topright_quadrant, \myname:"top right quadrant"),
-	\bottomleft_quadrant: (\vector: ~pattern_detector.normalize([0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0]), \mytype:\bottomleft_quadrant, \myname:"bottom left quadrant"),
-	\bottomright_quadrant: (\vector: ~pattern_detector.normalize([0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1]), \mytype:\bottomright_quadrant, \myname:"bottom right quadrant"),
-	\horizontal_middle: (\vector: ~pattern_detector.normalize([0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0]), \mytype:\horizontal_middle, \myname:"horizontal middle"),
-	\vertical_middle: (\vector: ~pattern_detector.normalize([0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0]), \mytype:\vertical_middle, \myname:"vertical middle"),
+	// single-sensor patterns
+	/*
+	\1: (\vector: ~pattern_detector.mkshape([0]), \mytype:\1, \myname:"sensor 1"),
+	\2: (\vector: ~pattern_detector.mkshape([1]), \mytype:\2, \myname:"sensor 2"),
+	\3: (\vector: ~pattern_detector.mkshape([2]), \mytype:\3, \myname:"sensor 3"),
+	\4: (\vector: ~pattern_detector.mkshape([3]), \mytype:\4, \myname:"sensor 4"),
+	\5: (\vector: ~pattern_detector.mkshape([4]), \mytype:\5, \myname:"sensor 5"),
+	\8: (\vector: ~pattern_detector.mkshape([7]), \mytype:\8, \myname:"sensor 8"),
+	\9: (\vector: ~pattern_detector.mkshape([8]), \mytype:\9, \myname:"sensor 9"),
+	\12: (\vector: ~pattern_detector.mkshape([11]), \mytype:\12, \myname:"sensor 12"),
+	\13: (\vector: ~pattern_detector.mkshape([12]), \mytype:\13, \myname:"sensor 13"),
+	\14: (\vector: ~pattern_detector.mkshape([13]), \mytype:\14, \myname:"sensor 14"),
+	\15: (\vector: ~pattern_detector.mkshape([14]), \mytype:\15, \myname:"sensor 15"),
+	\16: (\vector: ~pattern_detector.mkshape([15]), \mytype:\16, \myname:"sensor 16"),
+	*/
+
+	// one-handed patterns
+	\left  : (\vector:  ~pattern_detector.mkshape([0,4,8,12])),
+	\wide_left:(\vector:  ~pattern_detector.mkshape([0,1,4,5,8,9,12,13])),
+	\right : (\vector:  ~pattern_detector.mkshape([3,7,11,15])),
+	\wide_right:(\vector: ~pattern_detector.mkshape([2,3,6,7,10,11,14,15])),
+	\top   : (\vector:  ~pattern_detector.mkshape([0,1,2,3])),
+	\wide_top: (\vector:  ~pattern_detector.mkshape([0,1,2,3,4,5,6,7])),
+	\bottom: (\vector:  ~pattern_detector.mkshape([12,13,14,15])),
+	\wide_bottom:(\vector:~pattern_detector.mkshape([8,9,10,11,12,13,14,15])),
+	\top_left_corner : (\vector: ~pattern_detector.mkshape([0,1,2,3,4,8,12])),
+	\top_right_corner : (\vector: ~pattern_detector.mkshape([0,1,2,3,7,11,15])),
+	\top_left_quadrant : (\vector: ~pattern_detector.mkshape([0,1,4,5])),
+	\top_right_quadrant : (\vector: ~pattern_detector.mkshape([2,3,6,7])),
+	\bottom_left_quadrant: (\vector: ~pattern_detector.mkshape([8,9,12,13])),
+	\bottom_right_quadrant: (\vector: ~pattern_detector.mkshape([10,11,14,15])),
+	\horizontal_middle: (\vector: ~pattern_detector.mkshape([4,5,6,7,8,9,10,11])),
+	\vertical_middle: (\vector: ~pattern_detector.mkshape([1,2,5,6,9,10,13,14])),
+	\top_left_two_horizontal: (\vector: ~pattern_detector.mkshape([0,1])),
+	\top_left_two_vertical: (\vector: ~pattern_detector.mkshape([0,4])),
+	\bottom_left_two_vertical: (\vector: ~pattern_detector.mkshape([8,12])),
+	\bottom_left_two_horizontal: (\vector: ~pattern_detector.mkshape([12,13])),
+	\bottom_right_two_horizontal: (\vector: ~pattern_detector.mkshape([14,15])),
+	\bottom_right_two_vertical: (\vector: ~pattern_detector.mkshape([11,15])),
+	\top_right_two_vertical: (\vector: ~pattern_detector.mkshape([3,7])),
+	\top_right_two_horizontal: (\vector: ~pattern_detector.mkshape([2,3])),
+
+	// two handed patterns
+	\bottom_left_corner : (\vector: ~pattern_detector.mkshape([0,4,8,12,13,14,15])),
+	\bottom_right_corner : (\vector: ~pattern_detector.mkshape([3,7,11,12,13,14,15])),
+	\left_and_right_column: (\vector: ~pattern_detector.mkshape([0,3,4,7,8,11,12,15])),
+	\top_and_bottom_row: (\vector: ~pattern_detector.mkshape([0,1,2,3,12,13,14,15]), \mytype:\top_and_bottom_row, \myname: "top and bottom row"),
+	\top_left_to_bottom_right_opposing_quadrants: (\vector: ~pattern_detector.mkshape([0,1,4,5,10,11,14,15])),
+	\top_right_to_bottom_left_opposing_quadrants: (\vector: ~pattern_detector.mkshape([2,3,6,7,8,9,12,13])),
 ));
+
+// augment shape definitions with some meta information
+~pattern_detector[\known_shapes].keysValuesDo{
+	|key, val|
+	// add some information
+	~pattern_detector[\known_shapes][key][\mytype] = key;
+	~pattern_detector[\known_shapes][key][\myname] = key.asString.replace("_", " ");
+};
+
 ~pattern_detector.safeReg(\add_state, {
 	|self, sensormodel, calibration |
 	var values = [];
-	16.do {
+	~sensors.do {
 		|sensoridx|
 		var val = sensormodel.val(sensoridx).linlin(
 			calibration.minval(sensoridx),
@@ -82,14 +142,14 @@ var lowermargin = 0;
 	if (self[\update_counter] >= self[\max_event_counter]) {
 		self.calculate_new_gesture;
 		self[\update_counter] = 0;
-		self[\state] = (0!16)!~pattern_detector[\max_event_counter];
+		self[\state] = (0!~sensors)!~pattern_detector[\max_event_counter];
 	};
 });
 ~pattern_detector.safeReg(\calculate_new_gesture, {
 	|self|
 	var dc_level = self[\state].flatten.sum;
-	var dc_level_over_no_of_sensors = dc_level / 16;
-	var differences = (0!16)!(~pattern_detector[\max_event_counter] - 1);
+	var dc_level_over_no_of_sensors = dc_level / ~sensors / ~pattern_detector[\max_event_counter];
+	var differences = (0!~sensors)!(~pattern_detector[\max_event_counter] - 1);
 	var measured_shape, shapes=[], errors=[], types=[], min_error_idx=0, min_error=1000, shape=\none;
 	(~pattern_detector[\max_event_counter] - 1).do {
 		| timeidx |
@@ -175,7 +235,7 @@ var lowermargin = 0;
 	|uview|
 	var totalwidth = uview.bounds.width;
 	var totalheight= uview.bounds.height;
-	16.do({
+	~sensors.do({
 		| sensorindex |
 		var sensor = ~sensormodel[sensorindex.asSymbol];
 		var x = sensor[\x];
@@ -429,7 +489,7 @@ var lowermargin = 0;
 	~calibration[\nextbutton].enabled_(true);
 	~calibration[\calstate] = (\idx: 0, \method: \fast);
 	~calibration[\status].string_("Cover ALL sensors and press next.");
-	16.do {
+	~sensors.do {
 		|idx|
 		~sensormodel.setHighlight(idx, \min);
 		~sensormodel.setShowcalibration(idx, true);
@@ -468,7 +528,7 @@ var lowermargin = 0;
 				};
 				~calibration[\calstate] = (\idx:0, \method:\slow);
 				~sensormodel.setHighlight(buttonindex, \none);
-				16.do {
+				~sensors.do {
 					| idx |
 					~sensormodel.setShowcalibration(idx, false);
 				};
@@ -492,7 +552,7 @@ var lowermargin = 0;
 	} {
 		// fast method
 		var sensorvalues = ();
-		16.do {
+		~sensors.do {
 			|idx|
 			sensorvalues[idx.asSymbol] = [];
 			~sensormodel.setHighlight(idx, if (currentoperation == \min) { \max } { \min });
@@ -500,13 +560,13 @@ var lowermargin = 0;
 		fork {
 			10.do {
 				|meas|
-				16.do {
+				~sensors.do {
 					|sensoridx|
 					sensorvalues[sensoridx.asSymbol] = sensorvalues[sensoridx.asSymbol] ++ ~sensormodel.val(sensoridx);
 				};
 				0.2.wait;
 			};
-			16.do {
+			~sensors.do {
 				| sensoridx |
 				if (calindex == 0) {
 					~sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
@@ -521,7 +581,7 @@ var lowermargin = 0;
 		};
 
 		if (calindex > 0) {
-			16.do {
+			~sensors.do {
 				|idx|
 				~sensormodel.setHighlight(idx, \none);
 				~sensormodel.setShowcalibration(idx, false);
@@ -566,7 +626,7 @@ s.waitForBoot({
 
 	s.sync;
 
-	drones = Array.fill(16, {
+	drones = Array.fill(~sensors, {
 		|idx|
 		Synth(\osc, [
 			\freq, ((idx*2) + 60).midicps,

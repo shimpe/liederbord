@@ -41,6 +41,14 @@ var sns = [];
 ~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
 	| shapeerror |
+	~sensors.do{
+		| sensoridx |
+		~sensormodel.setHighlight(sensoridx, \none);
+	};
+	shapeerror[\raw_info][\sensors].do {
+		| sensoridx |
+		~sensormodel.setHighlight(sensoridx, \recognized);
+	};
 	if (~command_sequence_recognizer.notNil) {
 		~command_sequence_recognizer.add_input(shapeerror[\mytype]);
 	};
@@ -74,20 +82,25 @@ var sns = [];
 
 ~pattern_detector.safeReg(\known_shapes, (
 	// single-sensor patterns
-	/*
-	\1: ~pattern_detector.makepat([0],
-	\2: ~pattern_detector.makepat([1],
-	\3: ~pattern_detector.makepat([2],
-	\4: ~pattern_detector.makepat([3],
-	\5: ~pattern_detector.makepat([4],
-	\8: ~pattern_detector.makepat([7],
-	\9: ~pattern_detector.makepat([8],
-	\12: ~pattern_detector.makepat([11],
-	\13: ~pattern_detector.makepat([12],
-	\14: ~pattern_detector.makepat([13],
-	\15: ~pattern_detector.makepat([14],
-	\16: ~pattern_detector.makepat([15],
-	*/
+	\1: ~pattern_detector.makepat([0]),
+	\2: ~pattern_detector.makepat([1]),
+	\3: ~pattern_detector.makepat([2]),
+	\4: ~pattern_detector.makepat([3]),
+	\5: ~pattern_detector.makepat([4]),
+	\8: ~pattern_detector.makepat([7]),
+	\9: ~pattern_detector.makepat([8]),
+	\12: ~pattern_detector.makepat([11]),
+	\13: ~pattern_detector.makepat([12]),
+	\14: ~pattern_detector.makepat([13]),
+	\15: ~pattern_detector.makepat([14]),
+	\16: ~pattern_detector.makepat([15]),
+
+	// single-sensor, but quasi unreachable
+	\6 : ~pattern_detector.makepat([5]),
+	\7 : ~pattern_detector.makepat([6]),
+	\10: ~pattern_detector.makepat([9]),
+	\11: ~pattern_detector.makepat([10]),
+
 
 	// one-handed patterns
 	\left  : ~pattern_detector.makepat([0,4,8,12]),
@@ -183,7 +196,7 @@ var sns = [];
 		var best_type = types[min_error_idx];
 		var best_shape = known_shapes[types[min_error_idx]];
 		var strength = dc_level_over_no_of_sensors*best_shape[\vector].count({|el| el!=0;}); // dc_level * #sensors involved in pattern / #total no of sensors
-		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength, \mytype: best_type);
+		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength, \mytype: best_type, \raw_info:~pattern_detector[\known_shapes][best_type]);
 		if (self[\callback].notNil) {
 			self[\callback].(self[\last_recognized_gesture]);
 		};
@@ -254,7 +267,15 @@ var sns = [];
 		var left = ((x*2) + 1)*totalwidth/9;
 		var top = ((y*2) + 1)*totalheight/9;
 		var color = Color(sensor[\val].linlin(sensor[\min], sensor[\max], 0, 1));
-		var highlightcolor = if (sensor[\highlight] == \min) { Color(0, 0, 1.0); } { Color(0.5, 0.5, 1.0); };
+		var highlightcolor = if (sensor[\highlight] == \min) {
+			Color(0, 0, 1.0);
+		} {
+			if (sensor[\highlight] == \max) {
+				Color(0.5, 0.5, 1.0);
+			} {
+				Color(234.0/255, 231.0/255, 58.0/255);
+			};
+		};
 
 		if (sensor[\highlight] != \none) {
 			var extrawidth = (totalwidth/6) - (totalwidth/9);
@@ -667,9 +688,48 @@ var sns = [];
 	});
 });
 
-~command_sequence_recognizer.register_sequence([\bottom_left_quadrant, \bottom_right_quadrant], { "left quad/right quad matched".postln; });
+~music_patterns = ();
+~music_patterns[\pat_bell] = Pbind(
+	\instrument, \bell,
+	\fs, Pwrand([Pseq( (60..72), 1).midicps, Pseq( (72..40), 1).midicps], [1, 1].normalizeSum, inf),
+	\t60, Pwhite(0.5, 9),
+	\pitchy, Pwhite(1,4),
+	\amp, 0.1,
+	\dur, Pseq([0.1], 20.rrand(50))
+);
+~music_patterns[\pat_sin] = Pbind(
+	\instrument, \simplesin,
+	\freq, Pfunc {
+		var newfreq = ~freq * ~intervals.choose;
+		if ((newfreq > 200) && (newfreq < 2000)) { ~freq = newfreq; };
+		~freq
+	},
+	\len, 8,
+	\dur, Pseq([1], 10)
+);
+~music_patterns[\pat_flute] = Pbind(
+	\instrument, \flute,
+	\degree, Pxrand([1,3,5,6,Rest(),Rest(),Rest()], inf),
+	\octave, Prand([5,6], inf),
+	\dur, Prand([1.0,2.0,4.0], 20.rrand(30)),
+	\amp, Pbrown(0.15, 0.3, 0.05, inf),
+	\a, Prand([0.2, 0.5, 1.0], inf),
+	\r, Prand([1.0, 2.0], inf),
+);
+
+
+~command_sequence_recognizer.register_sequence([\bottom_left_quadrant, \bottom_right_quadrant], {
+	~music_patterns[\pat_bell].play;
+});
+~command_sequence_recognizer.register_sequence([\top_left_quadrant, \top_right_quadrant], {
+	~music_patterns[\pat_flute].play;
+});
+~command_sequence_recognizer.register_sequence([\left, \right, \left], {
+	~music_patterns[\pat_sin].play;
+});
 
 fork {
+	2.wait;
 	while (true) {
 		~pattern_detector.add_state(~sensormodel, ~calibration);
 		0.1.wait;
@@ -683,6 +743,43 @@ s.waitForBoot({
 		var pulse = SinOsc.kr(pulsefreq, phase:2pi.rrand(0.0)).range(0,1);
 		var panned_sig = Pan2.ar(pulse*sig, pan);
 		Out.ar(out, panned_sig);
+	}).add;
+
+	// 1. define the synth
+	SynthDef(\bell, {
+		|fs=1, t60=1, pitchy=1, amp=0.25, gate=1|
+		var sig, exciter;
+		//exciter = Impulse.ar(0);
+		exciter = WhiteNoise.ar() * EnvGen.ar(Env.perc(0.001, 0.05), gate) * 0.25;
+		sig = Klank.ar(
+			`[
+				[1, 2, 2.803, 3.871, 5.074, 7.81, 10.948, 14.421],   // freqs
+				[1, 0.044, 0.891, 0.0891, 0.794, 0.1, 0.281, 0.079], // amplitudes
+				[1, 0.205, 1, 0.196, 0.339, 0.047, 0.058, 0.047]*t60     // ring times
+			],
+			exciter,
+			freqscale:fs*pitchy);
+		sig = FreeVerb.ar(sig) * amp;
+		DetectSilence.ar(sig, 0.01, 0.5, doneAction:2);
+		Out.ar(0, sig!2);
+	}).add;
+
+	SynthDef(\simplesin,{
+		|freq=440, amp=0.02, len=8|
+		var oscFreq = freq+SinOsc.ar(Rand(0.01,0.3),0,Rand(0,0));
+		var env = EnvGen.ar(Env([0,1,0],[len/2,len/2]),doneAction:2);
+		var out = HPF.ar(LPF.ar(Pulse.ar(oscFreq,env)*amp*env,freq+(freq*1.5*env)),freq);
+		Out.ar(0,out!2);
+	}).add;
+
+	SynthDef(\flute, {
+		| out = 0, freq = 440, amp = 1.0, a = 0.1, r = 0.1|
+		//var fmod = 1; // clean
+		//var fmod = LFCub.kr(freq:1/12).range(1, LFNoise2.kr(freq:12.0).range(1,1.1)); // tone deaf flute
+		var fmod = LFCub.kr(freq:1/12).range(1, LFNoise2.kr(freq:12.0).range(1,1.02)); // flute-like sound
+		var env = EnvGen.ar(Env.perc(a, r), levelScale:0.5, doneAction:2);
+		var snd = SinOsc.ar(freq * fmod)!2;
+		Out.ar(bus:out, channelsArray:(env*(amp*snd).tanh));
 	}).add;
 
 	s.sync;

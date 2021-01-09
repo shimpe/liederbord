@@ -107,8 +107,6 @@ var sns = [];
 	\wide_top: ~pattern_detector.makepat([0,1,2,3,4,5,6,7]),
 	\bottom: ~pattern_detector.makepat([12,13,14,15]),
 	\wide_bottom: ~pattern_detector.makepat([8,9,10,11,12,13,14,15]),
-	\top_left_corner : ~pattern_detector.makepat([0,1,2,3,4,8,12]),
-	\top_right_corner : ~pattern_detector.makepat([0,1,2,3,7,11,15]),
 	\top_left_quadrant : ~pattern_detector.makepat([0,1,4,5]),
 	\top_right_quadrant : ~pattern_detector.makepat([2,3,6,7]),
 	\bottom_left_quadrant: ~pattern_detector.makepat([8,9,12,13]),
@@ -128,6 +126,8 @@ var sns = [];
 	*/
 
 	// two handed patterns
+	\top_left_corner : ~pattern_detector.makepat([0,1,2,3,4,8,12]),
+	\top_right_corner : ~pattern_detector.makepat([0,1,2,3,7,11,15]),
 	\bottom_left_corner : ~pattern_detector.makepat([0,4,8,12,13,14,15]),
 	\bottom_right_corner : ~pattern_detector.makepat([3,7,11,12,13,14,15]),
 	\left_and_right_column: ~pattern_detector.makepat([0,3,4,7,8,11,12,15]),

@@ -1,22 +1,23 @@
 (
 ~calibration = (
-	\0 : (\min: 270, \max: 900),
-	\1 : (\min: 270, \max: 900),
-	\2 : (\min: 270, \max: 900),
-	\3 : (\min: 270, \max: 900),
-	\4 : (\min: 270, \max: 900),
-	\5 : (\min: 270, \max: 900),
-	\6 : (\min: 270, \max: 900),
-	\7 : (\min: 270, \max: 900),
-	\8 : (\min: 270, \max: 900),
-	\9 : (\min: 270, \max: 900),
-	\10 : (\min: 270, \max: 900),
-	\11 : (\min: 270, \max: 900),
-	\12 : (\min: 270, \max: 900),
-	\13 : (\min: 270, \max: 900),
-	\14 : (\min: 270, \max: 900),
-	\15 : (\min: 270, \max: 900),
-
+	\table : (
+		\0 : (\min: 270, \max: 900),
+		\1 : (\min: 270, \max: 900),
+		\2 : (\min: 270, \max: 900),
+		\3 : (\min: 270, \max: 900),
+		\4 : (\min: 270, \max: 900),
+		\5 : (\min: 270, \max: 900),
+		\6 : (\min: 270, \max: 900),
+		\7 : (\min: 270, \max: 900),
+		\8 : (\min: 270, \max: 900),
+		\9 : (\min: 270, \max: 900),
+		\10 : (\min: 270, \max: 900),
+		\11 : (\min: 270, \max: 900),
+		\12 : (\min: 270, \max: 900),
+		\13 : (\min: 270, \max: 900),
+		\14 : (\min: 270, \max: 900),
+		\15 : (\min: 270, \max: 900),
+	),
 	\safeReg : {
 		// adding methods to the event using safeReg will warn you if you overwrite methods
 		// that already have a pre-defined meaning (like: "next").
@@ -38,11 +39,11 @@
 );
 ~calibration.safeReg(\minval, {
 	| self, sensoridx |
-	self[sensoridx.asSymbol][\min];
+	self[\table][sensoridx.asSymbol][\min];
 });
 ~calibration.safeReg(\maxval, {
 	| self, sensoridx |
-	self[sensoridx.asSymbol][\max];
+	self[\table][sensoridx.asSymbol][\max];
 });
 
 ~calibration.safeReg(\calbutton, Button().states_([["Slow calibrate"]]).action_({
@@ -83,9 +84,9 @@
 			};
 
 			if (currentoperation == \min) {
-				~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.minIndex];
+				~calibration[\table][buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.minIndex];
 			} {
-				~calibration[buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
+				~calibration[\table][buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
 			};
 			~sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
 
@@ -141,11 +142,13 @@
 				| sensoridx |
 				if (calindex == 0) {
 					~sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
+					~calibration[\table][sensoridx.asSymbol][\min] = ~sensormodel[sensoridx.asSymbol][\min];
 					defer {
 						~calibration[\status].string_("Open ALL sensors and click next.");
 					};
 				} {
 					~sensormodel[sensoridx.asSymbol][\max] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].maxIndex];
+					~calibration[\table][sensoridx.asSymbol][\max] = ~sensormodel[sensoridx.asSymbol][\max];
 				};
 			};
 			~calibration[\calstate][\idx] = calindex + 1;
@@ -166,9 +169,68 @@
 			};
 		};
 	};
+
+	~calibration.save;
+
 }).enabled_(false));
 
 ~calibration.safeReg(\calstate, (\idx: 0, \method:\slow));
+~calibration.safeReg(\load, {
+	| self, fullpath=nil |
+	if (fullpath.isNil) {
+		fullpath = ~calibration[\file_location];
+	};
+	("Load calibration triggered with fullpath=" + fullpath).postln;
+	if (fullpath.notNil) {
+		if (File.existsCaseSensitive(fullpath).not) {
+			("Calibration file" + fullpath + "not found!").postln;
+		} {
+			var path = PathName(fullpath);
+			Archive.archiveDir_(path.pathOnly.debug("set path"));
+			Archive.read(path.fileName.debug("loading"));
+			Archive.global.debug("global archive");
+			if (Archive.global.isNil.not) {
+				~calibration[\table] = Archive.global.at(\calibration_table).copy();
+				~calibration[\table].debug("New calibration table");
+				~sensors.do {
+					|sensoridx|
+					if (~sensormodel[sensoridx.asSymbol].isNil) {
+						~sensormodel[sensoridx.asSymbol] = ();
+					};
+					~sensormodel[sensoridx.asSymbol][\min] = ~calibration[\table][sensoridx.asSymbol][\min];
+					~sensormodel[sensoridx.asSymbol][\max] = ~calibration[\table][sensoridx.asSymbol][\max];
+				};
+			};
+		};
+	} {
+		"No path specified for loading calibration!".error;
+	};
+});
+
+~calibration.safeReg(\save, {
+	| self, fullpath |
+
+	if (fullpath.isNil) {
+		fullpath = ~calibration[\file_location];
+	};
+
+	if (fullpath.notNil) {
+		var path = PathName(fullpath);
+		if (File.existsCaseSensitive(fullpath)) {
+			("Overwriting existing file" + fullpath).postln;
+		} {
+			("File" + fullpath + "doesn't exist yet. Creating...").postln;
+		};
+
+		Archive.global.put(\calibration_table, ~calibration[\table]);
+		Archive.global.debug("archive");
+		Archive.archiveDir_((path.pathOnly).debug("in location"));
+		Archive.write((path.fileName).debug("write"));
+	} {
+		"No path specified for saving calibration!".error;
+	};
+
+});
 
 ~calibration
 )

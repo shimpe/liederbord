@@ -1,3 +1,4 @@
+
 (
 Require("patterndetector.scd");
 
@@ -35,7 +36,9 @@ Require("patterndetector.scd");
 ~command_sequence_recognizer.safeReg(\add_input, {
 	|self, input |
 	var memory = self[\memory];
-	memory.removeAt(0);
+	if (memory != []) {
+		memory.removeAt(0);
+	};
 	memory = memory.add(~pattern_detector[\known_shapes][input][\mychar]);
 	self[\command_table].do({
 		| command |
@@ -47,6 +50,10 @@ Require("patterndetector.scd");
 			handler.();
 		};
 	});
+});
+~command_sequence_recognizer.safeReg(\remove_all, {
+	|self|
+	self[\command_table] = ();
 });
 
 ~command_sequence_recognizer

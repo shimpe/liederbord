@@ -1,3 +1,4 @@
+
 (
 ~sensormodel = (
 		\safeReg : {
@@ -105,8 +106,8 @@
 				\x: x,
 				\y: y,
 				\linindex:linindex,
-				\min: calibration[linindex.asSymbol][\min],
-				\max: calibration[linindex.asSymbol][\max],
+				\min: calibration[\table][linindex.asSymbol][\min],
+				\max: calibration[\table][linindex.asSymbol][\max],
 				\highlight: \none,
 				\showcalibration: false,
 				\val:0);

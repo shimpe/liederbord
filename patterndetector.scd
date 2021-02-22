@@ -193,6 +193,10 @@ var sns = [];
 		var best_shape = known_shapes[types[min_error_idx]];
 		var strength = dc_level_over_no_of_sensors*best_shape[\vector].count({|el| el!=0;}); // dc_level * #sensors involved in pattern / #total no of sensors
 		self[\last_recognized_gesture] = (\shape: shapes[min_error_idx], \error: min_error, \strength:strength, \mytype: best_type, \raw_info:~pattern_detector[\known_shapes][best_type]);
+
+		// now that we have found a shape, extract some direction information
+		//best_shape.debug("best shape");
+
 		if (self[\callback].notNil) {
 			self[\callback].(self[\last_recognized_gesture]);
 		};

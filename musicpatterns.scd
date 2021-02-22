@@ -404,6 +404,355 @@
 	self.synths = [];
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+~music_patterns[\scenes][\beeps] = ();
+~music_patterns[\scenes][\beeps][\prepare] = {
+	| self |
+
+	var scale, buffer;
+
+	SynthDef(\beep, {
+		var sig, env;
+		sig = SinOsc.ar(\freq.ir(1000));
+		env = Env(
+			[0,1,1,0],
+			[\atk.ir(0), \sus.ir(0.03), \rel.ir(0)],
+			[\atkcrv.ir(2), 0, \relcrv.ir(-2)]
+		).ar(2);
+		sig = sig * env;
+		sig = Pan2.ar(sig, \pan.ir(0), \amp.ir(0.3));
+		Out.ar(\out.ir(0), sig);
+		Out.ar(\outfx.ir(0), sig * \send.ir(-30).dbamp);
+	}).add;
+
+	s.sync;
+
+	SynthDef(\drone, {
+		| out=0,freq=440, dur=1, amp=0.1, pan=0, width=0 |
+		var env = EnvGen.kr(Env.new([0, 1, 1, 0], [1.0, dur, 1.0]), doneAction:Done.freeSelf);
+		var sig = Array.fill(20, {
+			var multiplier = [
+				0.99, 1, 1.01,
+				1.99, 2, 2.01,
+				3.99, 4, 4.01].choose;
+			var ampmult = multiplier.reciprocal;
+			RLPF.ar(
+				in: LFSaw.ar(
+					freq:LFNoise1.kr(0.5.rrand(1.0)).range(freq*(1-width), freq*(1+width))*multiplier,
+					iphase:0.0.rrand(2pi)),
+				rq: LFNoise1.kr(0.5).range(0.2,0.6),
+				mul:LFNoise0.kr(2.0).range(16.reciprocal, ampmult));
+		});
+		var finalsig = Splay.ar(env*sig);
+		var finalsig_panned = Balance2.ar(
+			finalsig[0],
+			finalsig[1],
+			pan*SinOsc.kr(LFNoise1.kr(1).range(0.05,0.2)));
+		Out.ar(out, LeakDC.ar(amp*finalsig_panned));
+	},
+	metadata: (
+		credit: "Stefaan Himpe",
+		category: \pad,
+		tags: [\pitched]
+	)).add;
+
+	s.sync;
+
+	SynthDef(\noise, {
+		| out, dur, amp, pan |
+		var env = EnvGen.kr(Env.perc(1.0, dur*0.8, curve:10.neg), doneAction:Done.freeSelf);
+		var sig = LPF.ar(WhiteNoise.ar()*LFPulse.kr(LFNoise1.kr(0.5).range(3,12)), LFNoise1.kr(2).range(2, 1)*4000);
+		Out.ar(out, Pan2.ar(env*amp*sig, pan));
+	}, metadata: (
+		credit: "Stefaan Himpe",
+		category: \noise,
+		tags: [\unpitched]
+	)).add;
+
+	s.sync;
+
+	SynthDef(\reverb, {
+		var sig, wet;
+		sig = In.ar(\in.ir(0), 2);
+		sig = FreeVerb2.ar(sig[0], sig[1], mix:1, room:0.99, damp:0.99);
+		sig = LPF.ar(sig, 900);
+		Out.ar(\out.ir(0), sig);
+	}).add;
+
+	s.sync;
+
+	// modal space
+	// mouse x controls discrete pitch in dorian mode
+	scale = FloatArray[0, 2, 3.2, 5, 7, 9, 10]; // dorian scale
+	buffer = Buffer.alloc(s, scale.size,1, {|b| b.setnMsg(0, scale) });
+
+	s.sync;
+
+	SynthDef(\shepherd, {
+		| out = 0, amp=0, note=0, overallamp=0 |
+		var sig;
+		sig =
+		// lead tone
+		(amp*SinOsc.ar(
+			(
+				DegreeToKey.kr(
+					buffer.bufnum,
+					note,		// mouse indexes into scale
+					12,					// 12 notes per octave
+					1,					// mul = 1
+					72					// offset by 72 notes
+				)
+				+ LFNoise1.kr([3,3], 0.04)	// add some low freq stereo detuning
+			).midicps,						// convert midi notes to hertz
+			0,
+			0.1))
+
+		// drone 5ths
+		+ RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
+			SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1);
+
+		// add some 70's euro-space-rock echo
+		sig = CombN.ar(sig, 0.31, 0.31, 2, 1, sig);
+		Out.ar(out, overallamp*sig);
+	}).add;
+
+	s.sync;
+
+	Tdef(\update_shepherd, {
+		loop {
+			var svals = 16.collect { |idx| ~sensormodel.val(idx); };
+			var minel = svals.minItem;
+			var minidx = svals.minIndex;
+			var trigger = minel.linlin(
+				~calibration.minval(minidx),
+				~calibration.maxval(minidx),
+				1,
+				0).debug("trigger");
+
+			if (trigger < 0.2) {
+				~shepherd.set(\amp, 0);
+			} {
+				var note = trigger.linlin(0.2, 1, 0, 15);
+				~shepherd.set(\note, note);
+				~shepherd.set(\amp, 0.9);
+			};
+
+			0.1.wait;
+		};
+	}).stop;
+
+	~shepherd = Synth(\shepherd);
+
+	s.newBusAllocators;
+
+	~reverbBus= Bus.audio(s, 2);
+	~fxgroup = Group();
+	~reverb = Synth(\reverb, [\in, ~reverbBus], ~fxgroup);
+	~freeze = nil;
+};
+
+~music_patterns[\scenes][\beeps][\cleanup] = {
+	|self|
+	Tdef(\update_shepherd).stop;
+	~music_patterns[\scenes][\beeps][\players].do ({
+		| player |
+		player.stop;
+	});
+	~reverbBus.free;
+	~fxgroup.free;
+	~reverbBus= nil;
+	~fxgroup = nil;
+	~reverb = nil;
+};
+~music_patterns[\scenes][\beeps][\patterns] = (
+	\sonar : Pbind(
+		\instrument, \beep,
+		\freq, Prand([Pseq([1500, 1500, Rest()], 1), Pseq([1500,1500,1500,Rest()], 1)], inf)*Pfunc({0.25.rrand(1.0)}),
+		\out, 0,
+		\outfx, ~reverbBus,
+		\send, -20,
+		\rel, 0.01,
+		\dur, Pseq([0.25, 0.25, 0.5], inf),
+		\pan, Pwhite(-0.85,0.85,inf),
+	),
+
+	\melody : Pbind(
+		\instrument, \beep,
+		\degree, Pseq([
+			Pwrand([
+				Pseq([0, 6, Rest()], 1),
+				Pseq([0, 4, Rest()], 1),
+				Pseq([0, 3, Rest()], 1),
+				Pseq([0, 2, Rest()], 1),
+				Pseq([0, 0, Rest()], 1),
+			],
+			[0.5,3,3,2,1].normalizeSum,
+			12),
+			Pseq([Rest()], 30)], inf),
+		\octave, 7,
+		\scale, Scale.dorian,
+		\atk, Pbrown(0.0, 0.25, 0.05, inf),
+		\out, 0,
+		\outfx, ~reverbBus,
+		\send, -20,
+		\rel, 0.1,
+		\dur, Pseq([0.25, 0.25, 0.5]*3.reciprocal, inf),
+	),
+
+	\percusssion : Pbind(
+		\instrument, \beep,
+		\freq, Pseq([Pseq([100, 150, Rest()], 4), Pseq([Rest(),Rest(),Rest()], 8)], inf),
+		\atk, 0,
+		\out, 0,
+		\outfx, ~reverbBus,
+		\send, 0,
+		\rel, 0.01,
+		\amp, 0.6,
+		\dur, Pseq([0.25, 0.25, 1.0], inf)*Pfunc({[2,1].choose;}),
+	),
+
+	\chords : Pbind(
+		\instrument, \drone,
+		\out, 0,
+		\degree, Prand([[0,2,4],[0,3,4],[0,1,4]], inf),
+		\octave, 6,
+		\scale, Scale.dorian,
+		\dur, 10.0,
+		\amp, Pseq([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], inf),
+	),
+
+	\noise : Pbind(
+		\instrument, \noise,
+		\degree, Pseq([0, Rest()], inf),
+		\dur, Prand([5.0, 10.0, 20.0], inf),
+		\amp, 0.2,
+		\pan, 0,
+		\out, Pwrand([0, ~reverbBus], [1, 1].normalizeSum, inf),
+	),
+
+	\final: Pbind(	\instrument, \noise,
+		\degree, Pseq([0], 1),
+		\dur, 20,
+		\amp, 0.4,
+		\pan, 0,
+		\out, ~reverbBus,
+	),
+
+);
+~music_patterns[\scenes][\beeps][\players] = ();
+
+~music_patterns[\scenes][\beeps][\gestures] = [
+	(
+		\name: "sonar",
+		\pattern: [\bottom_left_quadrant, \bottom_right_quadrant ],
+		\action: {
+			if (~freeze.isNil) {
+				"toggle sonar".postln;
+				if (~music_patterns[\scenes][\beeps][\players][\sonar].notNil) {
+					~music_patterns[\scenes][\beeps][\players][\sonar].stop;
+					~music_patterns[\scenes][\beeps][\players][\sonar] = nil;
+
+				} {
+					~music_patterns[\scenes][\beeps][\players][\sonar] = ~music_patterns[\scenes][\beeps][\patterns][\sonar].play;
+				};
+			}
+		}
+	),
+	(
+		\name: "melody",
+		\pattern: [\wide_left, \wide_right],
+		\action: {
+			if (~freeze.isNil) {
+				"toggle melody".postln;
+				if (~music_patterns[\scenes][\beeps][\players][\melody].notNil) {
+					~music_patterns[\scenes][\beeps][\players][\melody].stop;
+					~music_patterns[\scenes][\beeps][\players][\melody] = nil;
+
+				} {
+					~music_patterns[\scenes][\beeps][\players][\melody] = ~music_patterns[\scenes][\beeps][\patterns][\melody].play;
+				};
+			};
+		}
+	),
+	(
+		\name: "percussion",
+		\pattern: [ \wide_left, \bottom_left_corner ],
+		\action: {
+			if (~freeze.isNil) {
+				"toggle percussion".postln;
+				if (~music_patterns[\scenes][\beeps][\players][\percussion].notNil) {
+					~music_patterns[\scenes][\beeps][\players][\percussion].stop;
+					~music_patterns[\scenes][\beeps][\players][\percussion] = nil;
+				} {
+					~music_patterns[\scenes][\beeps][\players][\percussion] = ~music_patterns[\scenes][\beeps][\patterns][\percussion].play;
+			};
+
+			};
+		}
+	),
+	(
+		\name: "chords",
+		\pattern: [ \wide_left, \bottom_right_corner],
+		\action: {
+			if (~freeze.isNil) {
+				"toggle chords".postln;
+				if (~music_patterns[\scenes][\beeps][\players][\chords].notNil) {
+					~music_patterns[\scenes][\beeps][\players][\chords].stop;
+					~music_patterns[\scenes][\beeps][\players][\chords] = nil;
+				} {
+					~music_patterns[\scenes][\beeps][\players][\chords] = ~music_patterns[\scenes][\beeps][\patterns][\chords].play;
+				};
+			};
+		}
+	),
+	(
+		\name: "noise",
+		\pattern: [\wide_right, \bottom_left_quadrant],
+		\action: {
+			if (~freeze.isNil) {
+				"toggle noise".postln;
+				if (~music_patterns[\scenes][\beeps][\players][\noise].notNil) {
+					~music_patterns[\scenes][\beeps][\players][\noise].stop;
+					~music_patterns[\scenes][\beeps][\players][\noise] = nil;
+
+				} {
+					~music_patterns[\scenes][\beeps][\players][\noise] = ~music_patterns[\scenes][\beeps][\patterns][\noise].play;
+				};
+			};
+		};
+	),
+	(
+		\name: "freeze/switch",
+		\pattern: [\wide_right, \bottom_left_corner],
+		\action: {
+			if (~freeze.isNil) {
+				"~freeze active".postln;
+				~freeze = 1;
+				~shepherd.set(\overallamp, 1);
+				Tdef(\update_shepherd).play;
+			} {
+				"~freeze deactivated".postln;
+				~freeze = nil;
+				Tdef(\update_shepherd).stop;
+				~shepherd.set(\overallamp, 0);
+			};
+		}
+	),
+	(
+		\name: "stop all",
+		\pattern: [\13, \16],
+		\action: {
+			"toggle stop all".postln;
+			~music_patterns[\scenes][\beeps][\players].do ({
+				| player |
+				player.stop;
+			});
+			~music_patterns[\scenes][\beeps][\players] = ();
+			~music_patterns[\scenes][\beeps][\patterns][\final].play;
+		};
+	)
+];
+
 /*
 // template for new character
 // needed for raw value processors

@@ -40,7 +40,7 @@ s.options.memSize_(16384*10);
 s.reboot;
 s.waitForBoot {
 	fork {
-		~scene_switcher.switch_to(\lockdown);
+		~scene_switcher.switch_to(\beeps);
 	};
 };
 

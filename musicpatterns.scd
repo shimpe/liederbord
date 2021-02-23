@@ -513,7 +513,7 @@
 
 		// add some 70's euro-space-rock echo
 		sig = CombN.ar(sig, 0.31, 0.31, 2, 1, sig);
-		Out.ar(out, overallamp*sig);
+		Out.ar(out, Lag.kr(overallamp, 1.0)*sig);
 	}).add;
 
 	s.sync;
@@ -527,7 +527,7 @@
 				~calibration.minval(minidx),
 				~calibration.maxval(minidx),
 				1,
-				0).debug("trigger");
+				0);
 
 			if (trigger < 0.2) {
 				~shepherd.set(\amp, 0);
@@ -747,6 +747,8 @@
 				| player |
 				player.stop;
 			});
+			Tdef(\shepherd_update).stop;
+			~shepherd.set(\overallamp, 0);
 			~music_patterns[\scenes][\beeps][\players] = ();
 			~music_patterns[\scenes][\beeps][\patterns][\final].play;
 		};

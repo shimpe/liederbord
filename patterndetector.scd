@@ -32,8 +32,8 @@ var sns = [];
 ~pattern_detector.safeReg(\sns, sns);
 ~pattern_detector.safeReg(\last_recognized_gesture, \none);
 ~pattern_detector.safeReg(\update_counter, 0);
-~pattern_detector.safeReg(\error_tolerance, 5); // bigger error for all shapes results in shape \none
-~pattern_detector.safeReg(\max_event_counter, 10);
+~pattern_detector.safeReg(\error_tolerance, 1); // bigger error for all shapes results in shape \none
+~pattern_detector.safeReg(\max_event_counter, 5);
 ~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
 	| shapeerror |

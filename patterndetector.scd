@@ -32,8 +32,8 @@ var sns = [];
 ~pattern_detector.safeReg(\sns, sns);
 ~pattern_detector.safeReg(\last_recognized_gesture, \none);
 ~pattern_detector.safeReg(\update_counter, 0);
-~pattern_detector.safeReg(\error_tolerance, 1); // bigger error for all shapes results in shape \none
-~pattern_detector.safeReg(\max_event_counter, 5);
+~pattern_detector.safeReg(\error_tolerance, 0.25); // bigger error for all shapes results in shape \none
+~pattern_detector.safeReg(\max_event_counter, 10);
 ~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
 	| shapeerror |
@@ -187,6 +187,9 @@ var sns = [];
 	};
 	min_error_idx = errors.minIndex;
 	min_error = errors[min_error_idx];
+
+	min_error.debug("min error");
+
 	if (min_error < self[\error_tolerance]) {
 		var known_shapes = self[\known_shapes];
 		var best_type = types[min_error_idx];
@@ -196,6 +199,7 @@ var sns = [];
 
 		// now that we have found a shape, extract some direction information
 		//best_shape.debug("best shape");
+
 
 		if (self[\callback].notNil) {
 			self[\callback].(self[\last_recognized_gesture]);

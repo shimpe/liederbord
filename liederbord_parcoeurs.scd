@@ -18,7 +18,7 @@ if (MIDIClient.initialized.not) { MIDIClient.init; };
 ~sensormodel.setDefaults(~calibration);
 ~communication.startSerialPortThread(
 	[
-		//	[~communication[\internal], ~communication[\debug_callback]],
+		//[~communication[\internal], ~communication[\debug_callback]],
 		[~communication[\internal], ~communication[\send_supercollider]],
 		//	[~communication[\godot], ~communication[\send_godot]]
 	]
@@ -32,7 +32,7 @@ fork {
 	2.wait;
 	while (true) {
 		~pattern_detector.add_state(~sensormodel, ~calibration);
-		0.1.wait;
+		0.2.wait;
 	};
 };
 
@@ -40,7 +40,8 @@ s.options.memSize_(16384*10);
 s.reboot;
 s.waitForBoot {
 	fork {
-		~scene_switcher.switch_to(\beeps);
+		// \freejazz, \lockdown, \beeps, \percussionist, \balance
+		~scene_switcher.switch_to(\balance);
 	};
 };
 

@@ -93,6 +93,74 @@
 		~midiout.allNotesOff(ch);
 	};
 };
+~music_patterns[\scenes][\percussionist][\players] = ();
+~music_patterns[\scenes][\percussionist][\gestures] = [
+	(
+		\name: "p1",
+		\pattern: [ \bottom_left_quadrant, \bottom_right_quadrant ],
+		\action: {
+			"play p1".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p1].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p1].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p1] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p1] = ~music_patterns[\scenes][\percussionist][\patterns][\p1].play;
+		},
+	),
+	(
+		\name: "p2",
+		\pattern: [ \wide_left, \wide_right ],
+		\action: {
+			"play p2".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p2].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p2].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p2] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p2] = ~music_patterns[\scenes][\percussionist][\patterns][\p2].play;
+		},
+	),
+	(
+		\name: "p3",
+		\pattern : [ \wide_left, \bottom_left_corner ],
+		\action: {
+			"play p3".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p3].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p3].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p3] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p3] = ~music_patterns[\scenes][\percussionist][\patterns][\p3].play;
+		},
+	),
+	(
+		\name: "p4",
+		\pattern : [ \wide_left, \bottom_left_corner ],
+		\action: {
+			"play p3".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p3].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p3].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p3] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p3] = ~music_patterns[\scenes][\percussionist][\patterns][\p3].play;
+		},
+	),
+		(
+		\name: "p4",
+		\pattern : [ \wide_left, \bottom_right_corner ],
+		\action: {
+			"play p4".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p4].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p4].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p4] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p4] = ~music_patterns[\scenes][\percussionist][\patterns][\p4].play;
+		},
+	),
+];
 ~music_patterns[\scenes][\percussionist][\patterns] = (
 	\p1 : Pbind(
 		\type, \midi,
@@ -310,7 +378,7 @@
 		\chan, 9,
 		\midinote, Pseq([55], inf),
 		\dur, Pseq([1], inf),
-		\amp, Pseq([1.0], 5),
+		\amp, Pseq([1.0], 1),
 	)
 );
 
@@ -335,7 +403,9 @@
 		var sig2 = LPF.ar(HPF.ar(gcd(t*u, u+t), WhiteNoise.ar()*2000 + 1000), 20);
 		sig2 = sig2*sig;
 		sig = 0.3*Splay.ar(Limiter.ar(Greyhole.ar(sig + sig2, sig, 0.5, sig), 0.5).flatten);
-	}).play;
+	});
+
+	Ndef(\bits).fadeTime_(2.0);
 
 	SynthDef(\fatsaw, {
 		| out=0, freq = 440, amp=0.1, ampmult=1, gate=1, attack=0.01, decay=0.3, sustain=0.5, release=1, filterSpeed=100, filterFreqStart=300, filterFreqEnd=400, resonance=1, hfFilterFreq=1, hfFilterResonance=1 |
@@ -374,7 +444,7 @@
 			//("minrow: " + minrow + "mincol:" + mincol + "minval:" + minval).postln;
 			0.1.wait;
 			if (minval < threshold) {
-				var ampmult = minval.linlin(0,threshold,0.5,10);
+				var ampmult = minval.linlin(0,threshold,10,0.5);
 				var freq = minval.linexp(0,threshold,220,220*([minrow,mincol].max + 1));
 				self.synths.do { |snt| snt.set(\gate, 0); };
 				self.synths = [];
@@ -389,6 +459,24 @@
 	}).play;
 
 };
+~music_patterns[\scenes][\lockdown][\players] = ();
+~music_patterns[\scenes][\lockdown][\gestures] = [
+	(
+		\name: "stop all",
+		\pattern: [\13, \16],
+		\action: {
+			"toggle on off".postln;
+			if (~music_patterns[\scenes][\lockdown][\players][\eightbit].notNil) {
+				Ndef(\bits).stop(fadeTime:10.0);
+				~music_patterns[\scenes][\lockdown][\players][\eightbit] = nil;
+
+			} {
+				Ndef(\bits).play;
+				~music_patterns[\scenes][\lockdown][\players][\eightbit] = 1;
+			};
+		}
+	),
+];
 
 ~music_patterns[\scenes][\lockdown][\cleanup] = {
 	| self |
@@ -513,7 +601,7 @@
 
 		// add some 70's euro-space-rock echo
 		sig = CombN.ar(sig, 0.31, 0.31, 2, 1, sig);
-		Out.ar(out, Lag.kr(overallamp, 1.0)*sig);
+		Out.ar(out, Lag.kr(overallamp, 4.0)*sig);
 	}).add;
 
 	s.sync;
@@ -599,9 +687,9 @@
 		\dur, Pseq([0.25, 0.25, 0.5]*3.reciprocal, inf),
 	),
 
-	\percusssion : Pbind(
+	\percussion : Pbind(
 		\instrument, \beep,
-		\freq, Pseq([Pseq([100, 150, Rest()], 4), Pseq([Rest(),Rest(),Rest()], 8)], inf),
+		\freq, Pseq([Pseq([100, 150, Rest()], 4), Pseq([Rest(),Rest(),Rest()], 8)], inf).trace,
 		\atk, 0,
 		\out, 0,
 		\outfx, ~reverbBus,
@@ -685,7 +773,7 @@
 					~music_patterns[\scenes][\beeps][\players][\percussion] = nil;
 				} {
 					~music_patterns[\scenes][\beeps][\players][\percussion] = ~music_patterns[\scenes][\beeps][\patterns][\percussion].play;
-			};
+				};
 
 			};
 		}
@@ -728,7 +816,7 @@
 			if (~freeze.isNil) {
 				"~freeze active".postln;
 				~freeze = 1;
-				~shepherd.set(\overallamp, 1);
+				~shepherd.set(\overallamp, 0.6);
 				Tdef(\update_shepherd).play;
 			} {
 				"~freeze deactivated".postln;
@@ -753,6 +841,109 @@
 			~music_patterns[\scenes][\beeps][\patterns][\final].play;
 		};
 	)
+];
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+~music_patterns[\scenes][\balance] = ();
+~music_patterns[\scenes][\balance][\prepare]  = {|self|
+	self.buffers = [] ++ Buffer.read(s, PathName(thisProcess.nowExecutingPath).pathOnly +/+ "resources" +/+ "butifthenwhy.wav") ++ Buffer.read(s, PathName(thisProcess.nowExecutingPath).pathOnly +/+ "resources" +/+ "butifthenwhy.wav");
+
+	s.sync;
+
+	SynthDef(\bufplayer1, {
+		| out=0, bufnum=1, pan=0, amp=0.2, rate=1 |
+		Out.ar( out,
+			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
+		);
+	}).add;
+
+	s.sync;
+
+	SynthDef(\bufplayer2, {
+		| out=0, bufnum=1, pan=0, amp=0.2, rate=1 |
+		Out.ar( out,
+			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
+		);
+	}).add;
+
+	s.sync;
+
+	self.synths = [];
+
+	Tdef(\update_synth1, {
+		loop {
+
+			var lvals = [0,1,4,5,8,9,12,13].collect { |idx| ~sensormodel.val(idx); };
+			var lminel = lvals.minItem;
+			var lminidx = lvals.minIndex;
+			var lrate = lminel.linlin(
+				~calibration.minval(lminidx),
+				~calibration.maxval(lminidx),
+				1.05,
+				0.95).debug("lrate");
+
+			if (self.synths.size > 0) {
+				("set synth1 rate to " ++ lrate).postln;
+				self.synths[0].set(\rate, lrate);
+			};
+			0.1.wait;
+		};
+	});
+	Tdef(\update_synth2, {
+		loop {
+			var rvals = [2,3,6,7,10,11,14,15].collect { |idx| ~sensormodel.val(idx); };
+			var rminel = rvals.minItem;
+			var rminidx = rvals.minIndex;
+			var rrate = rminel.linlin(
+				~calibration.minval(rminidx),
+				~calibration.maxval(rminidx),
+				1.05,
+				0.95).debug("rrate");
+			if (self.synths.size > 1) {
+				("set synth2 rate to " ++ rrate).postln;
+				self.synths[1].set(\rate, rrate);
+			};
+			0.1.wait;
+		};
+	});
+};
+~music_patterns[\scenes][\balance][\cleanup] = { |self|
+	self.synths.do {
+		|synth|
+		synth.free;
+	};
+	~music_patterns[\scenes][\balance][\buffers].do {
+		| buf |
+		buf.free;
+	};
+};
+// needed for pattern based processors
+~music_patterns[\scenes][\balance][\patterns] = ();
+~music_patterns[\scenes][\balance][\synths] = nil;
+~music_patterns[\scenes][\balance][\players] = ();
+~music_patterns[\scenes][\balance][\gestures] = [
+	(
+		\name: "name",
+		\pattern: [\bottom_left_quadrant, \bottom_right_quadrant],
+		\action: {
+			if (~music_patterns[\scenes][\balance][\synths].isNil) {
+				"start synths".postln;
+				~music_patterns[\scenes][\balance][\synths] = [];
+				~music_patterns[\scenes][\balance][\synths] = ~music_patterns[\scenes][\balance][\synths] ++ Synth(\bufplayer1, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][0]]) ++ Synth(\bufplayer2, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][1]]);
+				Tdef(\update_synth1).play;
+				Tdef(\update_synth2).play;
+			} {
+				~music_patterns[\scenes][\balance][\synths].do {
+					|synth|
+					synth.free;
+				};
+				Tdef(\update_synth1).stop;
+				Tdef(\update_synth2).stop;
+				~music_patterns[\scenes][\balance][\synths] = nil;
+			};
+		};
+	);
 ];
 
 /*

@@ -147,7 +147,7 @@
 			~music_patterns[\scenes][\percussionist][\players][\p3] = ~music_patterns[\scenes][\percussionist][\patterns][\p3].play;
 		},
 	),
-		(
+	(
 		\name: "p4",
 		\pattern : [ \wide_left, \bottom_right_corner ],
 		\action: {
@@ -158,6 +158,19 @@
 
 			};
 			~music_patterns[\scenes][\percussionist][\players][\p4] = ~music_patterns[\scenes][\percussionist][\patterns][\p4].play;
+		},
+	),
+	(
+		\name: "p5",
+		\pattern : [ \wide_right, \bottom_left_quadrant ],
+		\action: {
+			"play p5".postln;
+			if (~music_patterns[\scenes][\percussionist][\players][\p5].notNil) {
+				~music_patterns[\scenes][\percussionist][\players][\p5].stop;
+				~music_patterns[\scenes][\percussionist][\players][\p5] = nil;
+
+			};
+			~music_patterns[\scenes][\percussionist][\players][\p5] = ~music_patterns[\scenes][\percussionist][\patterns][\p5].play;
 		},
 	),
 ];
@@ -196,7 +209,14 @@
 		\amp, Pbrown(0.6, 0.9, 0.1, inf),
 		\dur, Pseq([0.1, 0.05], 75),
 	),
-
+	\p5 : Pbind(
+		\type, \midi,
+		\chan, 9,
+		\midiout, ~midiout,
+		\midinote, Pxrand([76,77,78,79,80,81], inf),
+		\amp, Pbrown(0.6, 0.9, 0.1, inf),
+		\dur, Pseq([Pgeom(0.5, 0.95, 40), Pgeom(0.067637977139528, 0.95.reciprocal, 40)], 1)
+	)
 );
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -596,8 +616,8 @@
 			0.1))
 
 		// drone 5ths
-		+ RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
-			SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1);
+		+ (0.5*RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
+			SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1));
 
 		// add some 70's euro-space-rock echo
 		sig = CombN.ar(sig, 0.31, 0.31, 2, 1, sig);
@@ -629,12 +649,13 @@
 		};
 	}).stop;
 
-	~shepherd = Synth(\shepherd);
+	~shepherd = Synth(\shepherd, target:~synthgroup);
 
 	s.newBusAllocators;
 
 	~reverbBus= Bus.audio(s, 2);
-	~fxgroup = Group();
+	~synthgroup = Group();
+	~fxgroup = Group.after(~synthgroup);
 	~reverb = Synth(\reverb, [\in, ~reverbBus], ~fxgroup);
 	~freeze = nil;
 };
@@ -662,6 +683,7 @@
 		\rel, 0.01,
 		\dur, Pseq([0.25, 0.25, 0.5], inf),
 		\pan, Pwhite(-0.85,0.85,inf),
+		\group, ~synthgroup,
 	),
 
 	\melody : Pbind(
@@ -685,6 +707,7 @@
 		\send, -20,
 		\rel, 0.1,
 		\dur, Pseq([0.25, 0.25, 0.5]*3.reciprocal, inf),
+		\group, ~synthgroup,
 	),
 
 	\percussion : Pbind(
@@ -697,6 +720,7 @@
 		\rel, 0.01,
 		\amp, 0.6,
 		\dur, Pseq([0.25, 0.25, 1.0], inf)*Pfunc({[2,1].choose;}),
+		\group, ~synthgroup,
 	),
 
 	\chords : Pbind(
@@ -707,6 +731,7 @@
 		\scale, Scale.dorian,
 		\dur, 10.0,
 		\amp, Pseq([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], inf),
+		\group, ~synthgroup,
 	),
 
 	\noise : Pbind(
@@ -716,6 +741,7 @@
 		\amp, 0.2,
 		\pan, 0,
 		\out, Pwrand([0, ~reverbBus], [1, 1].normalizeSum, inf),
+		\group, ~synthgroup,
 	),
 
 	\final: Pbind(	\instrument, \noise,
@@ -723,6 +749,7 @@
 		\dur, 20,
 		\amp, 0.4,
 		\pan, 0,
+		\group, ~synthgroup,
 		\out, ~reverbBus,
 	),
 
@@ -741,6 +768,7 @@
 					~music_patterns[\scenes][\beeps][\players][\sonar] = nil;
 
 				} {
+					~music_patterns[\scenes][\beeps][\patterns][\sonar].debug("pattern");
 					~music_patterns[\scenes][\beeps][\players][\sonar] = ~music_patterns[\scenes][\beeps][\patterns][\sonar].play;
 				};
 			}
@@ -816,7 +844,7 @@
 			if (~freeze.isNil) {
 				"~freeze active".postln;
 				~freeze = 1;
-				~shepherd.set(\overallamp, 0.6);
+				~shepherd.set(\overallamp, 1.0);
 				Tdef(\update_shepherd).play;
 			} {
 				"~freeze deactivated".postln;
@@ -852,7 +880,7 @@
 	s.sync;
 
 	SynthDef(\bufplayer1, {
-		| out=0, bufnum=1, pan=0, amp=0.2, rate=1 |
+		| out=0, bufnum=1, pan=0, amp=0.6, rate=0.8 |
 		Out.ar( out,
 			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
 		);
@@ -861,7 +889,7 @@
 	s.sync;
 
 	SynthDef(\bufplayer2, {
-		| out=0, bufnum=1, pan=0, amp=0.2, rate=1 |
+		| out=0, bufnum=1, pan=0, amp=0.6, rate=0.8 |
 		Out.ar( out,
 			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
 		);
@@ -869,7 +897,16 @@
 
 	s.sync;
 
-	self.synths = [];
+	SynthDef(\theremin, {
+		|out=0, amp=0, freq=220, cutoff=1000|
+		var snd;
+		freq = Lag.kr(freq,1);
+		snd = LFSaw.ar([freq+(freq*SinOsc.ar(7,0,0.01)),freq+0.01+(freq*SinOsc.ar(7.234,0,0.01))]);
+		snd = RLPF.ar(snd, freq+cutoff, 0.1);
+		OffsetOut.ar(out, snd*amp*0.2);
+	}).add;
+
+	self.synths = nil;
 
 	Tdef(\update_synth1, {
 		loop {
@@ -880,8 +917,8 @@
 			var lrate = lminel.linlin(
 				~calibration.minval(lminidx),
 				~calibration.maxval(lminidx),
-				1.05,
-				0.95).debug("lrate");
+				1.2,
+				0.8).debug("lrate");
 
 			if (self.synths.size > 0) {
 				("set synth1 rate to " ++ lrate).postln;
@@ -898,8 +935,8 @@
 			var rrate = rminel.linlin(
 				~calibration.minval(rminidx),
 				~calibration.maxval(rminidx),
-				1.05,
-				0.95).debug("rrate");
+				1.2,
+				0.8).debug("rrate");
 			if (self.synths.size > 1) {
 				("set synth2 rate to " ++ rrate).postln;
 				self.synths[1].set(\rate, rrate);
@@ -907,6 +944,26 @@
 			0.1.wait;
 		};
 	});
+	/*
+	Tdef(\update_theremin, {
+		loop {
+			var vals = 16.collect { |idx| ~sensormodel.val(idx); };
+			var minval = vals.minItem;
+			var minidx = vals.minIndex;
+			var freq = minval.linexp(
+				~calibration.minval(minidx),
+				~calibration.maxval(minidx),
+				110,
+				880).debug("freq");
+			if (self.synths.size > 1) {
+				("set theremin freq to " ++ freq).postln;
+				self.synths[2].set(\freq, freq);
+			};
+
+			0.1.wait;
+		};
+	});
+	*/
 };
 ~music_patterns[\scenes][\balance][\cleanup] = { |self|
 	self.synths.do {
@@ -924,15 +981,17 @@
 ~music_patterns[\scenes][\balance][\players] = ();
 ~music_patterns[\scenes][\balance][\gestures] = [
 	(
-		\name: "name",
+		\name: "balance",
 		\pattern: [\bottom_left_quadrant, \bottom_right_quadrant],
 		\action: {
+			~music_patterns[\scenes][\balance][\synths].debug("synths");
 			if (~music_patterns[\scenes][\balance][\synths].isNil) {
 				"start synths".postln;
 				~music_patterns[\scenes][\balance][\synths] = [];
-				~music_patterns[\scenes][\balance][\synths] = ~music_patterns[\scenes][\balance][\synths] ++ Synth(\bufplayer1, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][0]]) ++ Synth(\bufplayer2, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][1]]);
+				~music_patterns[\scenes][\balance][\synths] = ~music_patterns[\scenes][\balance][\synths] ++ Synth(\bufplayer1, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][0]]) ++ Synth(\bufplayer2, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][1]]); // ++ Synth(\theremin , [\amp, 0.05]);
 				Tdef(\update_synth1).play;
 				Tdef(\update_synth2).play;
+				//Tdef(\update_theremin).play;
 			} {
 				~music_patterns[\scenes][\balance][\synths].do {
 					|synth|
@@ -940,6 +999,7 @@
 				};
 				Tdef(\update_synth1).stop;
 				Tdef(\update_synth2).stop;
+				//Tdef(\update_theremin).stop;
 				~music_patterns[\scenes][\balance][\synths] = nil;
 			};
 		};

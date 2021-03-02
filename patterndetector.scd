@@ -188,7 +188,7 @@ var sns = [];
 	min_error_idx = errors.minIndex;
 	min_error = errors[min_error_idx];
 
-	min_error.debug("min error");
+	//min_error.debug("min error");
 
 	if (min_error < self[\error_tolerance]) {
 		var known_shapes = self[\known_shapes];

@@ -32,7 +32,7 @@ fork {
 	2.wait;
 	while (true) {
 		~pattern_detector.add_state(~sensormodel, ~calibration);
-		0.2.wait;
+		0.1.wait;
 	};
 };
 
@@ -40,7 +40,7 @@ s.options.memSize_(16384*10);
 s.reboot;
 s.waitForBoot {
 	fork {
-		// \freejazz, \lockdown, \beeps, \percussionist, \balance
+		// \freejazz, \lockdown, \beeps, \balance, \percussionist,
 		~scene_switcher.switch_to(\balance);
 	};
 };

@@ -422,7 +422,7 @@
 		) * 0.1;
 		var sig2 = LPF.ar(HPF.ar(gcd(t*u, u+t), WhiteNoise.ar()*2000 + 1000), 20);
 		sig2 = sig2*sig;
-		sig = 0.3*Splay.ar(Limiter.ar(Greyhole.ar(sig + sig2, sig, 0.5, sig), 0.5).flatten);
+		sig = 0.6*Splay.ar(Limiter.ar(Greyhole.ar(sig + sig2, sig, 0.5, sig), 0.5).flatten);
 	});
 
 	Ndef(\bits).fadeTime_(2.0);
@@ -616,7 +616,7 @@
 			0.1))
 
 		// drone 5ths
-		+ (0.5*RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
+		+ (0.1*RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
 			SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1));
 
 		// add some 70's euro-space-rock echo
@@ -642,14 +642,12 @@
 			} {
 				var note = trigger.linlin(0.2, 1, 0, 15);
 				~shepherd.set(\note, note);
-				~shepherd.set(\amp, 0.9);
+				~shepherd.set(\amp, 1.5);
 			};
 
 			0.1.wait;
 		};
 	}).stop;
-
-	~shepherd = Synth(\shepherd, target:~synthgroup);
 
 	s.newBusAllocators;
 
@@ -658,6 +656,7 @@
 	~fxgroup = Group.after(~synthgroup);
 	~reverb = Synth(\reverb, [\in, ~reverbBus], ~fxgroup);
 	~freeze = nil;
+	~shepherd = Synth(\shepherd, target:~synthgroup);
 };
 
 ~music_patterns[\scenes][\beeps][\cleanup] = {
@@ -678,12 +677,12 @@
 		\instrument, \beep,
 		\freq, Prand([Pseq([1500, 1500, Rest()], 1), Pseq([1500,1500,1500,Rest()], 1)], inf)*Pfunc({0.25.rrand(1.0)}),
 		\out, 0,
-		\outfx, ~reverbBus,
+		\outfx, Pfunc { ~reverbBus },
 		\send, -20,
 		\rel, 0.01,
 		\dur, Pseq([0.25, 0.25, 0.5], inf),
 		\pan, Pwhite(-0.85,0.85,inf),
-		\group, ~synthgroup,
+		\group, Pfunc { ~synthgroup },
 	),
 
 	\melody : Pbind(
@@ -703,24 +702,24 @@
 		\scale, Scale.dorian,
 		\atk, Pbrown(0.0, 0.25, 0.05, inf),
 		\out, 0,
-		\outfx, ~reverbBus,
+		\outfx, Pfunc { ~reverbBus },
 		\send, -20,
 		\rel, 0.1,
 		\dur, Pseq([0.25, 0.25, 0.5]*3.reciprocal, inf),
-		\group, ~synthgroup,
+		\group, Pfunc { ~synthgroup },
 	),
 
 	\percussion : Pbind(
 		\instrument, \beep,
-		\freq, Pseq([Pseq([100, 150, Rest()], 4), Pseq([Rest(),Rest(),Rest()], 8)], inf).trace,
+		\freq, Pseq([Pseq([100, 150, Rest()], 4), Pseq([Rest(),Rest(),Rest()], 8)], inf),
 		\atk, 0,
 		\out, 0,
-		\outfx, ~reverbBus,
+		\outfx, Pfunc { ~reverbBus },
 		\send, 0,
 		\rel, 0.01,
 		\amp, 0.6,
 		\dur, Pseq([0.25, 0.25, 1.0], inf)*Pfunc({[2,1].choose;}),
-		\group, ~synthgroup,
+		\group, Pfunc { ~synthgroup },
 	),
 
 	\chords : Pbind(
@@ -730,8 +729,8 @@
 		\octave, 6,
 		\scale, Scale.dorian,
 		\dur, 10.0,
-		\amp, Pseq([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], inf),
-		\group, ~synthgroup,
+		\amp, Pseq([0.1, 0.2, 0.3, 0.4, 0.5], inf),
+		\group, Pfunc { ~synthgroup },
 	),
 
 	\noise : Pbind(
@@ -740,17 +739,17 @@
 		\dur, Prand([5.0, 10.0, 20.0], inf),
 		\amp, 0.2,
 		\pan, 0,
-		\out, Pwrand([0, ~reverbBus], [1, 1].normalizeSum, inf),
-		\group, ~synthgroup,
+		\out, Pwrand([0, Pfunc{ ~reverbBus } ], [1, 1].normalizeSum, inf),
+		\group, Pfunc { ~synthgroup },
 	),
 
 	\final: Pbind(	\instrument, \noise,
 		\degree, Pseq([0], 1),
-		\dur, 20,
-		\amp, 0.4,
+		\dur, 40,
+		\amp, 0.6,
 		\pan, 0,
-		\group, ~synthgroup,
-		\out, ~reverbBus,
+		\group, Pfunc { ~synthgroup },
+		\out, Pfunc { ~reverbBus },
 	),
 
 );
@@ -917,8 +916,8 @@
 			var lrate = lminel.linlin(
 				~calibration.minval(lminidx),
 				~calibration.maxval(lminidx),
-				1.2,
-				0.8).debug("lrate");
+				1.1,
+				0.9).debug("lrate");
 
 			if (self.synths.size > 0) {
 				("set synth1 rate to " ++ lrate).postln;
@@ -935,8 +934,8 @@
 			var rrate = rminel.linlin(
 				~calibration.minval(rminidx),
 				~calibration.maxval(rminidx),
-				1.2,
-				0.8).debug("rrate");
+				1.1,
+				0.9).debug("rrate");
 			if (self.synths.size > 1) {
 				("set synth2 rate to " ++ rrate).postln;
 				self.synths[1].set(\rate, rrate);

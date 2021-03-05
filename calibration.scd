@@ -88,7 +88,7 @@
 			} {
 				~calibration[\table][buttonindex.asSymbol][currentoperation] = sensorvalues[sensorvalues.maxIndex];
 			};
-			~sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[buttonindex.asSymbol][currentoperation];
+			~sensormodel[buttonindex.asSymbol][currentoperation] = ~calibration[\table][buttonindex.asSymbol][currentoperation];
 
 			if (calindex == 31) {
 				// last step done: reset everything
@@ -135,6 +135,7 @@
 				~sensors.do {
 					|sensoridx|
 					sensorvalues[sensoridx.asSymbol] = sensorvalues[sensoridx.asSymbol] ++ ~sensormodel.val(sensoridx);
+					//("meas" + meas + "sensoridx" + sensoridx + "has value" + ~sensormodel.val(sensoridx)).debug;
 				};
 				0.2.wait;
 			};
@@ -143,15 +144,18 @@
 				if (calindex == 0) {
 					~sensormodel[sensoridx.asSymbol][\min] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].minIndex];
 					~calibration[\table][sensoridx.asSymbol][\min] = ~sensormodel[sensoridx.asSymbol][\min];
+					//("at sensoridx" + sensoridx + "storing min value" + ~sensormodel[sensoridx.asSymbol][\min]).postln;
 					defer {
 						~calibration[\status].string_("Open ALL sensors and click next.");
 					};
 				} {
 					~sensormodel[sensoridx.asSymbol][\max] = sensorvalues[sensoridx.asSymbol][sensorvalues[sensoridx.asSymbol].maxIndex];
 					~calibration[\table][sensoridx.asSymbol][\max] = ~sensormodel[sensoridx.asSymbol][\max];
+					//("at sensoridx" + sensoridx + "storing max value" + ~sensormodel[sensoridx.asSymbol][\max]).postln;
 				};
 			};
 			~calibration[\calstate][\idx] = calindex + 1;
+			~calibration.save;
 		};
 
 		if (calindex > 0) {
@@ -170,7 +174,9 @@
 		};
 	};
 
-	~calibration.save;
+	if (calmethod == \slow) {
+		~calibration.save;
+	}
 
 }).enabled_(false));
 
@@ -191,7 +197,6 @@
 			Archive.global.debug("global archive");
 			if (Archive.global.isNil.not) {
 				~calibration[\table] = Archive.global.at(\calibration_table).copy();
-				~calibration[\table].debug("New calibration table");
 				~sensors.do {
 					|sensoridx|
 					if (~sensormodel[sensoridx.asSymbol].isNil) {
@@ -199,6 +204,7 @@
 					};
 					~sensormodel[sensoridx.asSymbol][\min] = ~calibration[\table][sensoridx.asSymbol][\min];
 					~sensormodel[sensoridx.asSymbol][\max] = ~calibration[\table][sensoridx.asSymbol][\max];
+					//("sensor" + sensoridx + "has min" + ~sensormodel[sensoridx.asSymbol][\min] + "and max" +  ~sensormodel[sensoridx.asSymbol][\max]).postln;
 				};
 			};
 		};
@@ -209,7 +215,7 @@
 
 ~calibration.safeReg(\save, {
 	| self, fullpath |
-
+	"save triggered".postln;
 	if (fullpath.isNil) {
 		fullpath = ~calibration[\file_location];
 	};

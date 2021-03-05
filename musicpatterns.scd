@@ -422,20 +422,19 @@
 		) * 0.1;
 		var sig2 = LPF.ar(HPF.ar(gcd(t*u, u+t), WhiteNoise.ar()*2000 + 1000), 20);
 		sig2 = sig2*sig;
-		sig = 0.6*Splay.ar(Limiter.ar(Greyhole.ar(sig + sig2, sig, 0.5, sig), 0.5).flatten);
+		sig = 0.6*LeakDC.ar(Splay.ar(Limiter.ar(Greyhole.ar(sig + sig2, sig, 0.5, sig), 0.5).flatten));
 	});
 
 	Ndef(\bits).fadeTime_(2.0);
 
 	SynthDef(\fatsaw, {
-		| out=0, freq = 440, amp=0.1, ampmult=1, gate=1, attack=0.01, decay=0.3, sustain=0.5, release=1, filterSpeed=100, filterFreqStart=300, filterFreqEnd=400, resonance=1, hfFilterFreq=1, hfFilterResonance=1 |
+		| out=0, freq = 440, octave=1, amp=0.1, ampmult=1, gate=1, attack=0.01, decay=0.3, sustain=0.5, release=1, filterSpeed=100, filterFreqStart=300, filterFreqEnd=400, resonance=1 |
 		var sig, env, filtFreq;
 		env = EnvGen.ar(Env.adsr(attack, decay, sustain, release), gate, levelScale:0.5, doneAction:Done.freeSelf);
-		sig = env*Splay.ar(LFSaw.ar(freq*[0.98,0.99,1.0,1.01,1.02],[LFNoise0.kr(2), LFNoise0.kr(1.9), LFNoise0.kr(2.1)]) + SinOsc.ar(freq*[0.98,0.99,1.0,1.01,1.02],[LFNoise0.kr(2), LFNoise0.kr(1.9), LFNoise0.kr(2.1)]));
+		sig = env*Splay.ar(LFSaw.ar(VarLag.kr(freq, 5)*octave*[0.98,0.99,1.0,1.01,1.02],[LFNoise0.kr(2), LFNoise0.kr(1.9), LFNoise0.kr(2.1)]) + SinOsc.ar(freq*[0.98,0.99,1.0,1.01,1.02],[LFNoise0.kr(2), LFNoise0.kr(1.9), LFNoise0.kr(2.1)]));
 		filtFreq = LFSaw.kr(filterSpeed,iphase:1).range(filterFreqStart,filterFreqEnd);
 		sig = RLPF.ar(sig, filtFreq, resonance);
-		sig = RHPF.ar(sig, hfFilterFreq, hfFilterResonance);
-		2.do({
+		4.do({
 			sig = AllpassN.ar(sig, 0.050, [0.050.rand, 0.050.rand], 1);
 		});
 		Out.ar(out, ampmult*amp*sig.tanh);
@@ -464,11 +463,12 @@
 			//("minrow: " + minrow + "mincol:" + mincol + "minval:" + minval).postln;
 			0.1.wait;
 			if (minval < threshold) {
-				var ampmult = minval.linlin(0,threshold,10,0.5);
+				var ampmult = minval.linlin(0,threshold,1,0.5);
 				var freq = minval.linexp(0,threshold,220,220*([minrow,mincol].max + 1));
+				var octave = (mincol+1).asInteger;
 				self.synths.do { |snt| snt.set(\gate, 0); };
 				self.synths = [];
-				self.synths = self.synths.add(Synth(\fatsaw, [\ampmult, ampmult, \freq, freq, \filterFreqStart, 50*(minrow+1), \filterFreqEnd, 1000*(mincol+1)]));
+				self.synths = self.synths.add(Synth(\fatsaw, [\amp, 1, \octave, octave, \ampmult, ampmult, \freq, freq, \filterFreqStart, 50*(minrow+1), \filterFreqEnd, 2000*(mincol+1)]));
 			} {
 				var ampmult = 0;
 				self.synths.do { |synth | synth.set(\gate, 0); };
@@ -491,7 +491,7 @@
 				~music_patterns[\scenes][\lockdown][\players][\eightbit] = nil;
 
 			} {
-				Ndef(\bits).play;
+				Ndef(\bits).play(fadeTime:4.0);
 				~music_patterns[\scenes][\lockdown][\players][\eightbit] = 1;
 			};
 		}

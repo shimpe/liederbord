@@ -874,105 +874,78 @@
 
 ~music_patterns[\scenes][\balance] = ();
 ~music_patterns[\scenes][\balance][\prepare]  = {|self|
-	self.buffers = [] ++ Buffer.read(s, PathName(thisProcess.nowExecutingPath).pathOnly +/+ "resources" +/+ "butifthenwhy.wav") ++ Buffer.read(s, PathName(thisProcess.nowExecutingPath).pathOnly +/+ "resources" +/+ "butifthenwhy.wav");
+	self.buffer = Buffer.read(s, PathName(thisProcess.nowExecutingPath).pathOnly +/+ "resources" +/+ "butifthenwhy.wav");
 
 	s.sync;
 
-	SynthDef(\bufplayer1, {
-		| out=0, bufnum=1, pan=0, amp=0.6, rate=0.8 |
-		Out.ar( out,
-			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
-		);
+	SynthDef(\bufplayerboth, {
+		/// arguments
+		var out = \out.kr(0);
+		var bufnum = \bufnum.kr(1);
+		var pan = \pan.kr(0);
+		var amp = \amp.kr(0.6);
+		var rate = \rate.kr(0.8);
+		var lag1 = \lag1.ar(0);
+		var lag2 = \lag2.ar(0);
+		/// code
+		var phasor = Phasor.ar(trig:0, rate:VarLag.kr(rate,1.0)*BufRateScale.kr(bufnum), start:0.0, end:BufFrames.kr(bufnum));
+		var pos1 = (phasor + VarLag.ar(lag1*SampleRate.ir, 1.0));
+		var pos2 = (phasor + VarLag.ar(lag2*SampleRate.ir, 1.0));
+
+		var monitor = PulseCount.ar(phasor >= (BufFrames.ir(bufnum)-100)).poll(label:"pulse 1");
+
+		var bufplay = amp*(BufRd.ar(2, bufnum, pos1, loop:0.0)
+			               +
+			               BufRd.ar(2, bufnum, pos2, loop:0.0));
+
+	    FreeSelf.kr(A2K.kr(monitor >= 1));
+
+		Out.ar(out, bufplay);
 	}).add;
 
 	s.sync;
 
-	SynthDef(\bufplayer2, {
-		| out=0, bufnum=1, pan=0, amp=0.6, rate=0.8 |
-		Out.ar( out,
-			amp*PlayBuf.ar(2, bufnum, rate*BufRateScale.kr(bufnum), loop:0.0);
-		);
-	}).add;
+	self.synt = nil;
 
-	s.sync;
-
-	SynthDef(\theremin, {
-		|out=0, amp=0, freq=220, cutoff=1000|
-		var snd;
-		freq = Lag.kr(freq,1);
-		snd = LFSaw.ar([freq+(freq*SinOsc.ar(7,0,0.01)),freq+0.01+(freq*SinOsc.ar(7.234,0,0.01))]);
-		snd = RLPF.ar(snd, freq+cutoff, 0.1);
-		OffsetOut.ar(out, snd*amp*0.2);
-	}).add;
-
-	self.synths = nil;
-
-	Tdef(\update_synth1, {
+	Tdef(\update_synth, {
 		loop {
 
 			var lvals = [0,1,4,5,8,9,12,13].collect { |idx| ~sensormodel.val(idx); };
 			var lminel = lvals.minItem;
 			var lminidx = lvals.minIndex;
-			var lrate = lminel.linlin(
+			var llag = lminel.linlin(
 				~calibration.minval(lminidx),
 				~calibration.maxval(lminidx),
-				1.1,
-				0.9).debug("lrate");
+				0.2.neg,
+				0.2);
 
-			if (self.synths.size > 0) {
-				("set synth1 rate to " ++ lrate).postln;
-				self.synths[0].set(\rate, lrate);
-			};
-			0.1.wait;
-		};
-	});
-	Tdef(\update_synth2, {
-		loop {
 			var rvals = [2,3,6,7,10,11,14,15].collect { |idx| ~sensormodel.val(idx); };
 			var rminel = rvals.minItem;
 			var rminidx = rvals.minIndex;
-			var rrate = rminel.linlin(
+			var rlag = rminel.linlin(
+				~calibration.minval(rminidx),
+				~calibration.maxval(rminidx),
+				0.2.neg,
+				0.2);
+			var rate = [lminel, rminel].minItem.linlin(
 				~calibration.minval(rminidx),
 				~calibration.maxval(rminidx),
 				1.1,
-				0.9).debug("rrate");
-			if (self.synths.size > 1) {
-				("set synth2 rate to " ++ rrate).postln;
-				self.synths[1].set(\rate, rrate);
-			};
-			0.1.wait;
-		};
-	});
-	/*
-	Tdef(\update_theremin, {
-		loop {
-			var vals = 16.collect { |idx| ~sensormodel.val(idx); };
-			var minval = vals.minItem;
-			var minidx = vals.minIndex;
-			var freq = minval.linexp(
-				~calibration.minval(minidx),
-				~calibration.maxval(minidx),
-				110,
-				880).debug("freq");
-			if (self.synths.size > 1) {
-				("set theremin freq to " ++ freq).postln;
-				self.synths[2].set(\freq, freq);
-			};
+				0.9);
 
+			if (self.synt.notNil) {
+				("set synth lag1 to " ++ llag ++ "; lag2 to" + rlag ++ "; rate to " ++ rate).postln;
+				self.synt.set(\lag1, llag);
+				self.synt.set(\lag2, rlag);
+				self.synt.set(\rate, rate);
+			};
 			0.1.wait;
 		};
 	});
-	*/
 };
 ~music_patterns[\scenes][\balance][\cleanup] = { |self|
-	self.synths.do {
-		|synth|
-		synth.free;
-	};
-	~music_patterns[\scenes][\balance][\buffers].do {
-		| buf |
-		buf.free;
-	};
+	self.synt.free;
+	self.buffer.free;
 };
 // needed for pattern based processors
 ~music_patterns[\scenes][\balance][\patterns] = ();
@@ -984,22 +957,14 @@
 		\pattern: [\bottom_left_quadrant, \bottom_right_quadrant],
 		\action: {
 			~music_patterns[\scenes][\balance][\synths].debug("synths");
-			if (~music_patterns[\scenes][\balance][\synths].isNil) {
+			if (~music_patterns[\scenes][\balance][\synt].isNil) {
 				"start synths".postln;
-				~music_patterns[\scenes][\balance][\synths] = [];
-				~music_patterns[\scenes][\balance][\synths] = ~music_patterns[\scenes][\balance][\synths] ++ Synth(\bufplayer1, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][0]]) ++ Synth(\bufplayer2, [\bufnum, ~music_patterns[\scenes][\balance][\buffers][1]]); // ++ Synth(\theremin , [\amp, 0.05]);
-				Tdef(\update_synth1).play;
-				Tdef(\update_synth2).play;
-				//Tdef(\update_theremin).play;
+				~music_patterns[\scenes][\balance][\synt] = Synth(\bufplayerboth, [\bufnum, ~music_patterns[\scenes][\balance][\buffer]]);
+				Tdef(\update_synth).play;
 			} {
-				~music_patterns[\scenes][\balance][\synths].do {
-					|synth|
-					synth.free;
-				};
-				Tdef(\update_synth1).stop;
-				Tdef(\update_synth2).stop;
-				//Tdef(\update_theremin).stop;
-				~music_patterns[\scenes][\balance][\synths] = nil;
+				~music_patterns[\scenes][\balance][\synt].free;
+				Tdef(\update_synth).stop;
+				~music_patterns[\scenes][\balance][\synt] = nil;
 			};
 		};
 	);

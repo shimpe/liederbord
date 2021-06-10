@@ -32,7 +32,7 @@ var sns = [];
 ~pattern_detector.safeReg(\sns, sns);
 ~pattern_detector.safeReg(\last_recognized_gesture, \none);
 ~pattern_detector.safeReg(\update_counter, 0);
-~pattern_detector.safeReg(\error_tolerance, 0.25); // bigger error for all shapes results in shape \none
+~pattern_detector.safeReg(\error_tolerance, 3); // bigger error for all shapes results in shape \none
 ~pattern_detector.safeReg(\max_event_counter, 10);
 ~pattern_detector.safeReg(\state, (0!~sensors)!~pattern_detector[\max_event_counter]);
 ~pattern_detector.safeReg(\callback, {
@@ -78,41 +78,41 @@ var sns = [];
 
 ~pattern_detector.safeReg(\known_shapes, (
 	// single-sensor patterns
-	\1: ~pattern_detector.makepat([0]),
-	\2: ~pattern_detector.makepat([1]),
-	\3: ~pattern_detector.makepat([2]),
-	\4: ~pattern_detector.makepat([3]),
-	\5: ~pattern_detector.makepat([4]),
-	\8: ~pattern_detector.makepat([7]),
-	\9: ~pattern_detector.makepat([8]),
-	\12: ~pattern_detector.makepat([11]),
+	//\1: ~pattern_detector.makepat([0]),
+	//\2: ~pattern_detector.makepat([1]),
+	//\3: ~pattern_detector.makepat([2]),
+	//\4: ~pattern_detector.makepat([3]),
+	//\5: ~pattern_detector.makepat([4]),
+	//\8: ~pattern_detector.makepat([7]),
+	//\9: ~pattern_detector.makepat([8]),
+	//\12: ~pattern_detector.makepat([11]),
 	\13: ~pattern_detector.makepat([12]),
-	\14: ~pattern_detector.makepat([13]),
-	\15: ~pattern_detector.makepat([14]),
+	//\14: ~pattern_detector.makepat([13]),
+	//\15: ~pattern_detector.makepat([14]),
 	\16: ~pattern_detector.makepat([15]),
 
 	// single-sensor, but quasi unreachable
-	\6 : ~pattern_detector.makepat([5]),
-	\7 : ~pattern_detector.makepat([6]),
-	\10: ~pattern_detector.makepat([9]),
-	\11: ~pattern_detector.makepat([10]),
+	//\6 : ~pattern_detector.makepat([5]),
+	//\7 : ~pattern_detector.makepat([6]),
+	//\10: ~pattern_detector.makepat([9]),
+	//\11: ~pattern_detector.makepat([10]),
 
 
 	// one-handed patterns
-	\left  : ~pattern_detector.makepat([0,4,8,12]),
+	//\left  : ~pattern_detector.makepat([0,4,8,12]),
 	\wide_left: ~pattern_detector.makepat([0,1,4,5,8,9,12,13]),
-	\right : ~pattern_detector.makepat([3,7,11,15]),
+	//\right : ~pattern_detector.makepat([3,7,11,15]),
 	\wide_right: ~pattern_detector.makepat([2,3,6,7,10,11,14,15]),
-	\top   : ~pattern_detector.makepat([0,1,2,3]),
-	\wide_top: ~pattern_detector.makepat([0,1,2,3,4,5,6,7]),
-	\bottom: ~pattern_detector.makepat([12,13,14,15]),
-	\wide_bottom: ~pattern_detector.makepat([8,9,10,11,12,13,14,15]),
-	\top_left_quadrant : ~pattern_detector.makepat([0,1,4,5]),
-	\top_right_quadrant : ~pattern_detector.makepat([2,3,6,7]),
+	//\top   : ~pattern_detector.makepat([0,1,2,3]),
+	//\wide_top: ~pattern_detector.makepat([0,1,2,3,4,5,6,7]),
+	//\bottom: ~pattern_detector.makepat([12,13,14,15]),
+	//\wide_bottom: ~pattern_detector.makepat([8,9,10,11,12,13,14,15]),
+	//\top_left_quadrant : ~pattern_detector.makepat([0,1,4,5]),
+	//\top_right_quadrant : ~pattern_detector.makepat([2,3,6,7]),
 	\bottom_left_quadrant: ~pattern_detector.makepat([8,9,12,13]),
 	\bottom_right_quadrant: ~pattern_detector.makepat([10,11,14,15]),
-	\horizontal_middle: ~pattern_detector.makepat([4,5,6,7,8,9,10,11]),
-	\vertical_middle: ~pattern_detector.makepat([1,2,5,6,9,10,13,14]),
+	//\horizontal_middle: ~pattern_detector.makepat([4,5,6,7,8,9,10,11]),
+	//\vertical_middle: ~pattern_detector.makepat([1,2,5,6,9,10,13,14]),
 
 	/*
 	\top_left_two_horizontal: ~pattern_detector.makepat([0,1]),
@@ -126,14 +126,14 @@ var sns = [];
 	*/
 
 	// two handed patterns
-	\top_left_corner : ~pattern_detector.makepat([0,1,2,3,4,8,12]),
-	\top_right_corner : ~pattern_detector.makepat([0,1,2,3,7,11,15]),
+	//\top_left_corner : ~pattern_detector.makepat([0,1,2,3,4,8,12]),
+	//\top_right_corner : ~pattern_detector.makepat([0,1,2,3,7,11,15]),
 	\bottom_left_corner : ~pattern_detector.makepat([0,4,8,12,13,14,15]),
 	\bottom_right_corner : ~pattern_detector.makepat([3,7,11,12,13,14,15]),
-	\left_and_right_column: ~pattern_detector.makepat([0,3,4,7,8,11,12,15]),
-	\top_and_bottom_row: ~pattern_detector.makepat([0,1,2,3,12,13,14,15]),
-	\top_left_to_bottom_right_opposing_quadrants: ~pattern_detector.makepat([0,1,4,5,10,11,14,15]),
-	\top_right_to_bottom_left_opposing_quadrants: ~pattern_detector.makepat([2,3,6,7,8,9,12,13]),
+	//\left_and_right_column: ~pattern_detector.makepat([0,3,4,7,8,11,12,15]),
+	//\top_and_bottom_row: ~pattern_detector.makepat([0,1,2,3,12,13,14,15]),
+	//\top_left_to_bottom_right_opposing_quadrants: ~pattern_detector.makepat([0,1,4,5,10,11,14,15]),
+	//\top_right_to_bottom_left_opposing_quadrants: ~pattern_detector.makepat([2,3,6,7,8,9,12,13]),
 ));
 
 // augment shape definitions with some meta information

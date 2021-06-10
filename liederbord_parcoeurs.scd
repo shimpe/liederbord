@@ -41,7 +41,10 @@ s.reboot;
 s.waitForBoot {
 	fork {
 		// \freejazz, \lockdown, \beeps, \balance, \percussionist,
-		~scene_switcher.switch_to(\balance);
+		//~scene_switcher.switch_to(\balance);
+		//~scene_switcher.switch_to(\beeps);
+		//~scene_switcher.switch_to(\freejazz);
+		~scene_switcher.switch_to(\lockdown);
 	};
 };
 

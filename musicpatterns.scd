@@ -468,7 +468,7 @@
 				var octave = (mincol+1).asInteger;
 				self.synths.do { |snt| snt.set(\gate, 0); };
 				self.synths = [];
-				self.synths = self.synths.add(Synth(\fatsaw, [\amp, 1, \octave, octave, \ampmult, ampmult, \freq, freq, \filterFreqStart, 50*(minrow+1), \filterFreqEnd, 2000*(mincol+1)]));
+				self.synths = self.synths.add(Synth(\fatsaw, [\amp, 0.6, \octave, octave, \ampmult, ampmult, \freq, freq, \filterFreqStart, 50*(minrow+1), \filterFreqEnd, 2000*(mincol+1)]));
 			} {
 				var ampmult = 0;
 				self.synths.do { |synth | synth.set(\gate, 0); };
@@ -616,7 +616,7 @@
 			0.1))
 
 		// drone 5ths
-		+ (0.1*RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
+		+ (0.3*RLPF.ar(LFPulse.ar([48,55].midicps, 0.15),
 			SinOsc.kr(0.1, 0, 10, 72).midicps, 0.1, 0.1));
 
 		// add some 70's euro-space-rock echo
@@ -916,8 +916,8 @@
 			var llag = lminel.linlin(
 				~calibration.minval(lminidx),
 				~calibration.maxval(lminidx),
-				0.2.neg,
-				0.2);
+				0.3.neg,
+				0.0);
 
 			var rvals = [2,3,6,7,10,11,14,15].collect { |idx| ~sensormodel.val(idx); };
 			var rminel = rvals.minItem;
@@ -925,8 +925,8 @@
 			var rlag = rminel.linlin(
 				~calibration.minval(rminidx),
 				~calibration.maxval(rminidx),
-				0.2.neg,
-				0.2);
+				0.3.neg,
+				0.0);
 			var rate = [lminel, rminel].minItem.linlin(
 				~calibration.minval(rminidx),
 				~calibration.maxval(rminidx),
